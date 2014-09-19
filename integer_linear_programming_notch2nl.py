@@ -11,8 +11,8 @@ import matplotlib.patches as mpatches
 
 #hard coded region we are looking at (hg19 reference)
 region=(120554845,120572645)
-#large region
-#region=(120553157-3000,120612265+3000)
+#new region
+#region=(120554845,120579535)
 
 class PenaltyTree(object):
     """
@@ -386,7 +386,7 @@ def main(args):
 
     #make dict mapping positions to adjusted alelle fractions and positions
     value_dict = dict()
-    for v in [args.A, args.B, args.C]:
+    for v in [args.A, args.B, args.C, args.AB]:
         for record in vcf.Reader(file(v)):
             if str(record.POS) in wl:
                 paralog, weight, chm1_pos = wl[str(record.POS)]

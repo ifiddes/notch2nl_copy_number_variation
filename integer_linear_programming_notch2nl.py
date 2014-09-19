@@ -440,7 +440,7 @@ def main(args):
 
     if args.save_lp_results is True:
         #debugging
-        tmp = open(os.path.join(os.path.basename(args.png), args.name + "_ILP_debugging.txt", "w"))
+        tmp = open(os.path.join(os.path.dirname(args.png), args.name + "_ILP_debugging.txt"), "w")
         tmp.write("mid\t(A,B,C)_data\t(A,B,C)_inferred\n")
         for mid, window in model.get_windows():
             a,b,c = window.get_copy_number()

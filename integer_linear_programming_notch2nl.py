@@ -381,7 +381,7 @@ def main(args):
     args = parse_args(args)
 
     #map whitelist positions to paralog and weight (and CHM1 pos)
-    wl = [x.split() for x in open(args.whitelist)]
+    wl = [x.split() for x in open(args.whitelist) if not x.startswith("#")]
     wl = {x[0]:(x[1],x[2],x[3]) for x in wl}
 
     #make dict mapping positions to adjusted alelle fractions and positions

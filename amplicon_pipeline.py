@@ -23,6 +23,7 @@ def parse_args(args):
     parser.add_argument("--whitelist", type=argparse.FileType("r"), help="whitelist file", default="whitelist.txt")
     parser.add_argument("--cores", type=int, help="# of cores for alignments", default=10)
     parser.add_argument("--index", type=str, help="base (ends in .fa) of bwa index of n2 locus", default="index/hs_n2.masked.fa")
+    parser.add_argument("--align", action="store_true", help="Realign? If not set, and there are no alignments, program will crash")
     return parser.parse_args()
 
 
@@ -103,11 +104,12 @@ def main(args):
 
     basename = os.path.join(args.out, args.name)
 
-    #call bwa and run samtools mpileup
-    call_bwa_samtools(args.fwd, args.rev, os.path.join(basename, args.name), args.cores, args.index)
+    if args.align is True:
+        #call bwa and run samtools mpileup
+        call_bwa_samtools(args.fwd, args.rev, os.path.join(basename, args.name), args.cores, args.index)
     
     #make set of wl positions
-    wl = [x.split() for x in args.whitelist][1:]
+    wl = [x.split() for x in args.whitelist if not x.startswith("#")][1:]
     wl = {x[0]:(x[1],x[2],x[3]) for x in wl}
 
     vcf_paths = [os.path.join(basename, args.name + x + ".vcf") for x in ['.N','.A','.B','.C','.D','.AB']]

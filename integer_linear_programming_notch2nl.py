@@ -178,17 +178,17 @@ class SequenceGraphLpProblem(object):
 class Window(object):
     """Stores the allele fractions of the A, B and C probes in a specific window
     as well as the LP variables to be solved for this window"""
-    def __init__(self, A, B, C, mid, min_ploidy=0):
+    def __init__(self, A, B, C, pos, min_ploidy=0):
         #save the midpoint of the window
-        self.mid = mid
+        self.pos = pos
         #save the lists of values as numpy arrays
         self.A_values = np.array(A)
         self.B_values = np.array(B)
         self.C_values = np.array(C)
         #save the LP variables that represent the inferred copy number at this window
-        self.A = pulp.LpVariable("A_{}".format(mid), min_ploidy, cat="Integer")
-        self.B = pulp.LpVariable("B_{}".format(mid), min_ploidy, cat="Integer")
-        self.C = pulp.LpVariable("C_{}".format(mid), min_ploidy, cat="Integer")
+        self.A = pulp.LpVariable("A_{}".format(pos), min_ploidy, cat="Integer")
+        self.B = pulp.LpVariable("B_{}".format(pos), min_ploidy, cat="Integer")
+        self.C = pulp.LpVariable("C_{}".format(pos), min_ploidy, cat="Integer")
 
     def get_values(self):
         """returns the value lists without removing outliers"""
@@ -276,12 +276,12 @@ class Model(object):
 
     def add_window(self, window):
         """Adds a window object to the windows dict, mapped by midpoint"""
-        self.windows[window.mid] = window
+        self.windows[window.pos] = window
 
     def get_windows(self):
         """generator that yields pairs of midpoint, window object"""
-        for mid, window in self.windows.iteritems():
-            yield mid, window
+        for pos, window in self.windows.iteritems():
+            yield pos, window
 
     def sort_windows(self):
         """Sorts windows by midpoint"""
@@ -342,7 +342,7 @@ def get_id():
 
 def plot_it(x, A, B, C, pngpath, samplename):
     """Plot the inferred copy numbers to pngpath
-    x = list of mids"""
+    x = list of positions"""
     x = np.array(x, dtype="int")
     A = np.array(A, dtype="int")
     B = np.array(B, dtype="int")
@@ -410,6 +410,7 @@ def main(args):
     model = Model(problem)
 
     #start populating the model with Windows
+    Avals, Bvals, Cvals = list(), list(), list()
     for x in xrange(region[0], region[1] - args.window, args.step):
         #find midpoint
         start, end = x, x + args.window
@@ -432,9 +433,13 @@ def main(args):
                 B.append(5 * value)
             else:
                 C.append(10 * value)
-        #add these to the model as a new Window
-        if len(A) > 0 and len(B) > 0:
-            model.add_window(Window(A, B, C, mid))
+        Avals.append(A); Bvals.append(B); Cvals.append(C)
+
+    #now we invert the A and B values because they are on the negative strand
+    Avals = Avals[::-1]; Bvals = Bvals[::-1]
+    for A, B, C, pos in zip(Avals, Bvals, Cvals, range(len(Avals))):
+        if len(A) > 0 and len(B) > 0 and len(C) > 0:
+            model.add_window(Window(A, B, C, pos))
 
     #build and solve the model
     model.sort_windows()
@@ -443,7 +448,7 @@ def main(args):
 
     #find the values for the copy number in each window
     x, A, B, C = list(), list(), list(), list()
-    for mid, window in model.get_windows():
+    for pos, window in model.get_windows():
         x.append(mid)
         a, b, c = window.get_copy_number()
         A.append(a); B.append(b); C.append(c)

@@ -354,7 +354,7 @@ def plot_it(x, A, B, C, pngpath, samplename):
     b = mpatches.Patch(color="blue", label="NOTCH2NL-A", alpha=0.7)
     g = mpatches.Patch(color="green", label="NOTCH2NL-C", alpha=0.7)
     plt.legend([b, r, g],["NOTCH2NL-A","NOTCH2NL-B","NOTCH2NL-C"])
-    plt.suptitle("{} NOTCH2NLA/B/C Copy Number Near Exon 2".format(samplename))
+    plt.suptitle("{} NOTCH2-NL A/B/C Copy Number Near Exon 2".format(samplename))
     plt.xlabel("hg19 Position")
     plt.ylabel("Inferred Copy Number")
     plt.savefig(pngpath, format="png")

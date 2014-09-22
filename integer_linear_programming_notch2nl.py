@@ -287,7 +287,7 @@ class Model(object):
         """Sorts windows by midpoint"""
         self.windows = collections.OrderedDict(sorted(self.windows.items()))
 
-    def build_model(self, default_ploidy=2, breakpoint_penalty=2, data_penalty=5, end_penalty=1):
+    def build_model(self, default_ploidy=2, breakpoint_penalty=1, data_penalty=5, end_penalty=1, deletion_penalty=1):
         """Builds ILP model. Run this once before solving the model.
         See the program docstring for the math behind this"""
         self.sort_windows()
@@ -302,21 +302,26 @@ class Model(object):
             self.constrain_approximately_equal(D_B, window.B, data_penalty)
             self.constrain_approximately_equal(D_C, window.C, data_penalty)
 
-            #keep the total copy number between 3 and 6
-            self.add_constraint(window.A + window.B + window.C <= 6)
-            self.add_constraint(window.A + window.B + window.C >= 3)
 
-            #penalize introducing breakpoints; tie windows together
+            #penalize introducing gene conversion breakpoints; tie windows together
             if i + 1 != len(windows) and i != 0:
                 next_window = windows[i + 1]
                 self.constrain_approximately_equal(window.A, next_window.A, breakpoint_penalty)
                 self.constrain_approximately_equal(window.B, next_window.B, breakpoint_penalty)
                 self.constrain_approximately_equal(window.C, next_window.C, breakpoint_penalty)
 
-            else:
-                self.constrain_approximately_equal(window.A, default_ploidy, end_penalty)
-                self.constrain_approximately_equal(window.B, default_ploidy, end_penalty)
-                self.constrain_approximately_equal(window.C, default_ploidy, end_penalty)
+                #constrain the sum of each window to be the same as the sum as the next window
+                #subject to a deletion penalty
+                self.constrain_approximately_equal(window.A + window.B + window.C, 
+                    next_window.A + next_window.B + next_window.C, deletion_penalty)
+
+            #penalize deletions at the ends
+            #else:
+            #    self.constrain_approximately_equal(window.A, default_ploidy, end_penalty)
+            #    self.constrain_approximately_equal(window.B, default_ploidy, end_penalty)
+            #    self.constrain_approximately_equal(window.C, default_ploidy, end_penalty)
+
+
 
 
 def get_id():
@@ -344,6 +349,11 @@ def plot_it(x, A, B, C, pngpath, samplename):
     C = np.array(C, dtype="int")
     fig = plt.figure()
     plt.axis([x[0], x[-1], 0, 9])
+    ax = plt.gca()
+    ax.axes.get_xaxis().set_ticks([])
+    ax.axes.get_yaxis().set_ticks(range(1,7))
+    plt.figtext(0, 0, "Exon 2")
+    plt.figtext(1, 0, "Intron 2 (18kb)")
     plt.fill_between(x,A+B+C, facecolor="blue", alpha=0.7)
     plt.fill_between(x,B+C, color="red", alpha=0.7)
     plt.fill_between(x,C, color="green", alpha=0.7)
@@ -354,8 +364,7 @@ def plot_it(x, A, B, C, pngpath, samplename):
     b = mpatches.Patch(color="blue", label="NOTCH2NL-A", alpha=0.7)
     g = mpatches.Patch(color="green", label="NOTCH2NL-C", alpha=0.7)
     plt.legend([b, r, g],["NOTCH2NL-A","NOTCH2NL-B","NOTCH2NL-C"])
-    plt.suptitle("{} NOTCH2-NL A/B/C Copy Number Near Exon 2".format(samplename))
-    plt.xlabel("hg19 Position")
+    plt.suptitle("{} NOTCH2NL A/B/C Copy Number Near Exon 2".format(samplename))
     plt.ylabel("Inferred Copy Number")
     plt.savefig(pngpath, format="png")
 
@@ -370,9 +379,10 @@ def parse_args(args):
     parser.add_argument("--step", type=int, help="step size to use. Default = 1000bp", default=1000)
     parser.add_argument("--png", type=str, help="PNG to write out to", required=True)
     parser.add_argument("--name", type=str, help="Patient Name", required=True)
-    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a breakpoint?)", default=2)
-    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=7)
-    parser.add_argument("--end_penalty", type=float, help="end penalty (how often do we expect a full deletion?)", default=2)
+    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a gene conversion breakpoint?)", default=2)
+    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=9)
+    parser.add_argument("--end_penalty", type=float, help="end penalty (how often do we expect a full deletion?)", default=3)
+    parser.add_argument("--deletion_penalty", type=float, help="deletion penalty (how often do we expect a deletion breakpoint within the window?)", default=5)
     parser.add_argument("--normalize", help="normalize the probe intensities?", action="store_true")
     parser.add_argument("--save_lp_results", help="Save LP results (debugging purposes)?", action="store_true")
     return parser.parse_args()

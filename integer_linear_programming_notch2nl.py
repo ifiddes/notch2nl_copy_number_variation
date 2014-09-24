@@ -179,7 +179,7 @@ class Window(object):
     """Stores the allele fractions of the A, B and C probes in a specific window
     as well as the LP variables to be solved for this window"""
     def __init__(self, A, B, C, pos, min_ploidy=0):
-        #save the midpoint of the window
+        #save the pospoint of the window
         self.pos = pos
         #save the lists of values as numpy arrays
         self.A_values = np.array(A)
@@ -275,19 +275,19 @@ class Model(object):
         self.problem.add_penalty(penalty)
 
     def add_window(self, window):
-        """Adds a window object to the windows dict, mapped by midpoint"""
+        """Adds a window object to the windows dict, mapped by pospoint"""
         self.windows[window.pos] = window
 
     def get_windows(self):
-        """generator that yields pairs of midpoint, window object"""
+        """generator that yields pairs of pospoint, window object"""
         for pos, window in self.windows.iteritems():
             yield pos, window
 
     def sort_windows(self):
-        """Sorts windows by midpoint"""
+        """Sorts windows by pospoint"""
         self.windows = collections.OrderedDict(sorted(self.windows.items()))
 
-    def build_model(self, default_ploidy=2, breakpoint_penalty=1, data_penalty=5, end_penalty=1, deletion_penalty=1):
+    def build_model(self, default_ploidy=2, breakpoint_penalty=2, data_penalty=5, end_penalty=1):
         """Builds ILP model. Run this once before solving the model.
         See the program docstring for the math behind this"""
         self.sort_windows()
@@ -302,24 +302,22 @@ class Model(object):
             self.constrain_approximately_equal(D_B, window.B, data_penalty)
             self.constrain_approximately_equal(D_C, window.C, data_penalty)
 
+            #keep the total copy number between 3 and 6
+            self.add_constraint(window.A + window.B + window.C <= 6)
+            self.add_constraint(window.A + window.B + window.C >= 3)
 
-            #penalize introducing gene conversion breakpoints; tie windows together
+            #penalize introducing breakpoints; tie windows together
             if i + 1 != len(windows) and i != 0:
                 next_window = windows[i + 1]
                 self.constrain_approximately_equal(window.A, next_window.A, breakpoint_penalty)
                 self.constrain_approximately_equal(window.B, next_window.B, breakpoint_penalty)
                 self.constrain_approximately_equal(window.C, next_window.C, breakpoint_penalty)
 
-                #constrain the sum of each window to be the same as the sum as the next window
-                #subject to a deletion penalty
-                self.constrain_approximately_equal(window.A + window.B + window.C, 
-                    next_window.A + next_window.B + next_window.C, deletion_penalty)
-
-            #penalize deletions at the ends
-            #else:
-            #    self.constrain_approximately_equal(window.A, default_ploidy, end_penalty)
-            #    self.constrain_approximately_equal(window.B, default_ploidy, end_penalty)
-            #    self.constrain_approximately_equal(window.C, default_ploidy, end_penalty)
+            else:
+                self.constrain_approximately_equal(window.A, default_ploidy, end_penalty)
+                self.constrain_approximately_equal(window.B, default_ploidy, end_penalty)
+                #C gets a weaker end penalty because we expect to see CNV in C far more often
+                self.constrain_approximately_equal(window.C, default_ploidy, end_penalty/2)
 
 
 
@@ -352,8 +350,8 @@ def plot_it(x, A, B, C, pngpath, samplename):
     ax = plt.gca()
     ax.axes.get_xaxis().set_ticks([])
     ax.axes.get_yaxis().set_ticks(range(1,7))
-    plt.figtext(0, 0, "Exon 2")
-    plt.figtext(1, 0, "Intron 2 (18kb)")
+    plt.figtext(0.12, 0.07, "Exon 2")
+    plt.figtext(0.81, 0.04, "Intron 2\n(18kb)")
     plt.fill_between(x,A+B+C, facecolor="blue", alpha=0.7)
     plt.fill_between(x,B+C, color="red", alpha=0.7)
     plt.fill_between(x,C, color="green", alpha=0.7)
@@ -379,10 +377,9 @@ def parse_args(args):
     parser.add_argument("--step", type=int, help="step size to use. Default = 1000bp", default=1000)
     parser.add_argument("--png", type=str, help="PNG to write out to", required=True)
     parser.add_argument("--name", type=str, help="Patient Name", required=True)
-    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a gene conversion breakpoint?)", default=2)
-    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=9)
+    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a gene conversion breakpoint?)", default=5)
+    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=10)
     parser.add_argument("--end_penalty", type=float, help="end penalty (how often do we expect a full deletion?)", default=3)
-    parser.add_argument("--deletion_penalty", type=float, help="deletion penalty (how often do we expect a deletion breakpoint within the window?)", default=5)
     parser.add_argument("--normalize", help="normalize the probe intensities?", action="store_true")
     parser.add_argument("--save_lp_results", help="Save LP results (debugging purposes)?", action="store_true")
     return parser.parse_args()
@@ -412,9 +409,7 @@ def main(args):
     #start populating the model with Windows
     Avals, Bvals, Cvals = list(), list(), list()
     for x in xrange(region[0], region[1] - args.window, args.step):
-        #find midpoint
         start, end = x, x + args.window
-        mid = (start + end) / 2
         #make list of values for each paralog
         A = list(); B = list(); C = list()
         #make list of positions within the current window in the data
@@ -449,19 +444,19 @@ def main(args):
     #find the values for the copy number in each window
     x, A, B, C = list(), list(), list(), list()
     for pos, window in model.get_windows():
-        x.append(mid)
+        x.append(pos)
         a, b, c = window.get_copy_number()
         A.append(a); B.append(b); C.append(c)
 
     if args.save_lp_results is True:
         #debugging
         tmp = open(os.path.join(os.path.dirname(args.png), args.name + "_ILP_debugging.txt"), "w")
-        tmp.write("mid\t(A,B,C)_data\t(A,B,C)_inferred\n")
-        for mid, window in model.get_windows():
+        tmp.write("pos\t(A,B,C)_data\t(A,B,C)_inferred\n")
+        for pos, window in model.get_windows():
             a,b,c = window.get_copy_number()
             old_a, old_b, old_c = window.get_best_estimate()
             old_a = round(old_a, 3); old_b = round(old_b, 3); old_c = round(old_c, 3)
-            tmp.write("{}\t{},{},{}\t{},{},{}\n".format(mid, old_a, old_b, old_c, a, b, c))
+            tmp.write("{}\t{},{},{}\t{},{},{}\n".format(pos, old_a, old_b, old_c, a, b, c))
         tmp.close()
 
     #graph this

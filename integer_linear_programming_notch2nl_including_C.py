@@ -178,33 +178,36 @@ class SequenceGraphLpProblem(object):
 class Window(object):
     """Stores the allele fractions of the A, B and C probes in a specific window
     as well as the LP variables to be solved for this window"""
-    def __init__(self, A, B, pos, min_ploidy=0):
+    def __init__(self, A, B, C, pos, min_ploidy=0):
         #save the pospoint of the window
         self.pos = pos
         #save the lists of values as numpy arrays
         self.A_values = np.array(A)
         self.B_values = np.array(B)
+        self.C_values = np.array(C)
         #save the LP variables that represent the inferred copy number at this window
         self.A = pulp.LpVariable("A_{}".format(pos), min_ploidy, cat="Integer")
         self.B = pulp.LpVariable("B_{}".format(pos), min_ploidy, cat="Integer")
+        self.C = pulp.LpVariable("C_{}".format(pos), min_ploidy, cat="Integer")
 
     def get_values(self):
         """returns the value lists without removing outliers"""
-        return [self.A_values, self.B_values]
+        return [self.A_values, self.B_values, self.C_values]
 
     def get_best_estimate(self):
         """Returns a single value for A, B and C in this window that is a best estimate of A+B+C"""
         A = np.mean(reject_outliers(self.A_values))
         B = np.mean(reject_outliers(self.B_values))
-        return A, B
+        C = np.mean(reject_outliers(self.C_values))
+        return A, B, C
 
     def get_values_outliers_removed(self):
         """Returns values with outliers removed"""
-        return [reject_outliers(self.A_values), reject_outliers(self.B_values)]
+        return [reject_outliers(self.A_values), reject_outliers(self.B_values), reject_outliers(self.C_values)]
 
     def get_copy_number(self):
         """returns copy numbers of A, B and C. LP must be solved"""
-        return [pulp.value(self.A), pulp.value(self.B)]
+        return [pulp.value(self.A), pulp.value(self.B), pulp.value(self.C)]
 
 
 class Model(object):
@@ -282,21 +285,29 @@ class Model(object):
         for i in xrange(len(windows)):
             window = windows[i]
             #find best data values in this window
-            D_A, D_B = window.get_best_estimate()
+            D_A, D_B, D_C = window.get_best_estimate()
 
             #minimize differences between data and variables
             self.constrain_approximately_equal(D_A, window.A, data_penalty)
             self.constrain_approximately_equal(D_B, window.B, data_penalty)
+            self.constrain_approximately_equal(D_C, window.C, data_penalty)
+
+            #keep the total copy number between 3 and 6
+            self.add_constraint(window.A + window.B + window.C <= 6)
+            self.add_constraint(window.A + window.B + window.C >= 3)
 
             #penalize introducing breakpoints; tie windows together
             if i + 1 != len(windows) and i != 0:
                 next_window = windows[i + 1]
                 self.constrain_approximately_equal(window.A, next_window.A, breakpoint_penalty)
                 self.constrain_approximately_equal(window.B, next_window.B, breakpoint_penalty)
+                self.constrain_approximately_equal(window.C, next_window.C, breakpoint_penalty)
 
             else:
                 self.constrain_approximately_equal(window.A, default_ploidy, end_penalty)
                 self.constrain_approximately_equal(window.B, default_ploidy, end_penalty)
+                #C gets a weaker end penalty because we expect to see CNV in C far more often
+                self.constrain_approximately_equal(window.C, default_ploidy, end_penalty/2)
 
 def reject_outliers(data, m = 2.):
     """http://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list"""
@@ -325,12 +336,13 @@ def get_id():
     get_id.last_id += 1
     return get_id.last_id
 
-def plot_it(x, A, B, pngpath, samplename):
+def plot_it(x, A, B, C, pngpath, samplename):
     """Plot the inferred copy numbers to pngpath
     x = list of positions"""
     x = np.array(x, dtype="int")
     A = np.array(A, dtype="int")
     B = np.array(B, dtype="int")
+    C = np.array(C, dtype="int")
     fig = plt.figure()
     plt.axis([x[0], x[-1], 0, 9])
     ax = plt.gca()
@@ -338,14 +350,17 @@ def plot_it(x, A, B, pngpath, samplename):
     ax.axes.get_yaxis().set_ticks(range(1,7))
     plt.figtext(0.12, 0.07, "Exon 2")
     plt.figtext(0.81, 0.04, "Intron 2\n(18kb)")
-    plt.fill_between(x,A+B, color="blue", alpha=0.7)
-    plt.fill_between(x,B, color="red", alpha=0.7)
-    plt.scatter(x, A+B, color="blue", label="NOTCH2NL-A")
-    plt.scatter(x, B, color="red", label="NOTCH2NL-B")
+    plt.fill_between(x,A+B+C, facecolor="blue", alpha=0.7)
+    plt.fill_between(x,B+C, color="red", alpha=0.7)
+    plt.fill_between(x,C, color="green", alpha=0.7)
+    plt.scatter(x, A+B+C, color="blue", label="NOTCH2NL-A")
+    plt.scatter(x, B+C, color="red", label="NOTCH2NL-B")
+    plt.scatter(x, C, color="green", label="NOTCH2NL-C")
     r = mpatches.Patch(color="red", label="NOTCH2NL-B", alpha=0.7)
     b = mpatches.Patch(color="blue", label="NOTCH2NL-A", alpha=0.7)
-    plt.legend([b, r],["NOTCH2NL-A","NOTCH2NL-B"])
-    plt.suptitle("{} NOTCH2NL A/B Copy Number Near Exon 2".format(samplename))
+    g = mpatches.Patch(color="green", label="NOTCH2NL-C", alpha=0.7)
+    plt.legend([b, r, g],["NOTCH2NL-A","NOTCH2NL-B","NOTCH2NL-C"])
+    plt.suptitle("{} NOTCH2NL A/B/C Copy Number Near Exon 2".format(samplename))
     plt.ylabel("Inferred Copy Number")
     plt.savefig(pngpath, format="png")
 
@@ -353,15 +368,15 @@ def parse_args(args):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--A", type=str, help="A VCF file", required=True)
     parser.add_argument("--B", type=str, help="B VCF file", required=True)
+    parser.add_argument("--C", type=str, help="C VCF file", required=True)
     parser.add_argument("--N", type=str, help="N2 VCF file", required=True)
-    parser.add_argument("--N_positions", type=argparse.FileType("r"), default="n2_normalizing_positions.txt")
     parser.add_argument("--whitelist", type=str, help="whitelist file with probe weights", default="whitelist.txt")
-    parser.add_argument("--window", type=int, help="window size to use. Default = 7500bp", default=7500)
-    parser.add_argument("--step", type=int, help="step size to use. Default = 1200bp", default=1200)
+    parser.add_argument("--window", type=int, help="window size to use. Default = 7000bp", default=7000)
+    parser.add_argument("--step", type=int, help="step size to use. Default = 1000bp", default=1000)
     parser.add_argument("--png", type=str, help="PNG to write out to", required=True)
     parser.add_argument("--name", type=str, help="Patient Name", required=True)
-    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a gene conversion breakpoint?)", default=4)
-    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=8)
+    parser.add_argument("--breakpoint_penalty", type=float, help="Breakpoint penalty (how easily do we want to open a gene conversion breakpoint?)", default=5)
+    parser.add_argument("--data_penalty", type=float, help="data penalty (how accurate are the data?)", default=10)
     parser.add_argument("--end_penalty", type=float, help="end penalty (how often do we expect a full deletion?)", default=3)
     parser.add_argument("--normalize", help="normalize the probe intensities?", action="store_true")
     parser.add_argument("--save_lp_results", help="Save LP results (debugging purposes)?", action="store_true")
@@ -375,14 +390,13 @@ def main(args):
     wl = {x[0]:(x[1],x[2],x[3]) for x in wl}
 
     #find the Notch2 Adjustment Value based on previously selected positions not in wl
-    n2_normalizing = map(int, [x.rstrip() for x in args.N_positions])
-    v = [float(x.INFO["ALTFRAC"][0]) for x in vcf.Reader(file(args.N)) if x.POS in n2_normalizing]
+    positions = [120537647, 120538506, 120538522, 120538825, 120538892, 120539530, 120539543, 120539837, 120539936, 120548025, 120548055, 120562410]
+    v = [float(x.INFO["ALTFRAC"][0]) for x in vcf.Reader(file(args.N)) if x.POS in positions]
     n_adjust = np.mean(reject_outliers(np.array(v))) / 0.8
 
-    
     #make dict mapping positions to adjusted alelle fractions and positions
     value_dict = dict()
-    for v in [args.A, args.B]:
+    for v in [args.A, args.B, args.C]:
         for record in vcf.Reader(file(v)):
             if str(record.POS) in wl:
                 paralog, weight, chm1_pos = wl[str(record.POS)]
@@ -398,11 +412,11 @@ def main(args):
     model = Model(problem)
 
     #start populating the model with Windows
-    Avals, Bvals = list(), list()
+    Avals, Bvals, Cvals = list(), list(), list()
     for x in xrange(region[0], region[1] - args.window, args.step):
         start, end = x, x + args.window
         #make list of values for each paralog
-        A = list(); B = list()
+        A = list(); B = list(); C = list()
         #make list of positions within the current window in the data
         positions = [x for x in value_dict.keys() if x >= start and x < end]
         #iterate over these and assign the values to A or B
@@ -414,13 +428,15 @@ def main(args):
                 A.append(10 * value)
             elif paralog == "B":
                 B.append(10 * value)
-        Avals.append(A); Bvals.append(B)
+            else:
+                C.append(10 * value)
+        Avals.append(A); Bvals.append(B); Cvals.append(C)
 
     #now we invert the A and B values because they are on the negative strand
     Avals = Avals[::-1]; Bvals = Bvals[::-1]
-    for A, B, pos in zip(Avals, Bvals, range(len(Avals))):
-        if len(A) > 0 and len(B) > 0:
-            model.add_window(Window(A, B, pos))
+    for A, B, C, pos in zip(Avals, Bvals, Cvals, range(len(Avals))):
+        if len(A) > 0 and len(B) > 0 and len(C) > 0:
+            model.add_window(Window(A, B, C, pos))
 
     #build and solve the model
     model.sort_windows()
@@ -428,25 +444,25 @@ def main(args):
     problem.solve()
 
     #find the values for the copy number in each window
-    x, A, B = list(), list(), list()
+    x, A, B, C = list(), list(), list(), list()
     for pos, window in model.get_windows():
         x.append(pos)
-        a, b = window.get_copy_number()
-        A.append(a); B.append(b)
+        a, b, c = window.get_copy_number()
+        A.append(a); B.append(b); C.append(c)
 
     if args.save_lp_results is True:
         #debugging
         tmp = open(os.path.join(os.path.dirname(args.png), args.name + "_ILP_debugging.txt"), "w")
-        tmp.write("pos\t(A,B)_data\t(A,B)_inferred\n")
+        tmp.write("pos\t(A,B,C)_data\t(A,B,C)_inferred\n")
         for pos, window in model.get_windows():
-            a,b = window.get_copy_number()
-            old_a, old_b = window.get_best_estimate()
-            old_a = round(old_a, 3); old_b = round(old_b, 3)
-            tmp.write("{}\t{},{}\t{},{}\n".format(pos, old_a, old_b, a, b))
+            a,b,c = window.get_copy_number()
+            old_a, old_b, old_c = window.get_best_estimate()
+            old_a = round(old_a, 3); old_b = round(old_b, 3); old_c = round(old_c, 3)
+            tmp.write("{}\t{},{},{}\t{},{},{}\n".format(pos, old_a, old_b, old_c, a, b, c))
         tmp.close()
 
     #graph this
-    plot_it(x, A, B, args.png, args.name)
+    plot_it(x, A, B, C, args.png, args.name)
 
 
 if __name__ == "__main__" :

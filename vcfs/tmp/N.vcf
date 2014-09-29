@@ -1,0 +1,174 @@
+##fileformat=VCFv4.1
+##samtoolsVersion=0.1.19-44428cd
+##reference=file://CHM1.fa
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=DP4,Number=4,Type=Integer,Description="# high-quality ref-forward bases, ref-reverse, alt-forward and alt-reverse bases">
+##INFO=<ID=MQ,Number=1,Type=Integer,Description="Root-mean-square mapping quality of covering reads">
+##INFO=<ID=FQ,Number=1,Type=Float,Description="Phred probability of all samples being the same">
+##INFO=<ID=AF1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele frequency (assuming HWE)">
+##INFO=<ID=AC1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele count (no HWE assumption)">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=IS,Number=2,Type=Float,Description="Maximum number of reads supporting an indel and fraction of indel reads">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes for each ALT allele, in the same order as listed">
+##INFO=<ID=G3,Number=3,Type=Float,Description="ML estimate of genotype frequencies">
+##INFO=<ID=HWE,Number=1,Type=Float,Description="Chi^2 based HWE test P-value based on G3">
+##INFO=<ID=CLR,Number=1,Type=Integer,Description="Log ratio of genotype likelihoods with and without the constraint">
+##INFO=<ID=UGT,Number=1,Type=String,Description="The most probable unconstrained genotype configuration in the trio">
+##INFO=<ID=CGT,Number=1,Type=String,Description="The most probable constrained genotype configuration in the trio">
+##INFO=<ID=PV4,Number=4,Type=Float,Description="P-values for strand bias, baseQ bias, mapQ bias and tail distance bias">
+##INFO=<ID=INDEL,Number=0,Type=Flag,Description="Indicates that the variant is an INDEL.">
+##INFO=<ID=PC2,Number=2,Type=Integer,Description="Phred probability of the nonRef allele frequency in group1 samples being larger (,smaller) than in group2.">
+##INFO=<ID=PCHI2,Number=1,Type=Float,Description="Posterior weighted chi^2 P-value for testing the association between group1 and group2 samples.">
+##INFO=<ID=QCHI2,Number=1,Type=Integer,Description="Phred scaled PCHI2.">
+##INFO=<ID=PR,Number=1,Type=Integer,Description="# permutations yielding a smaller PCHI2.">
+##INFO=<ID=QBD,Number=1,Type=Float,Description="Quality by Depth: QUAL/#reads">
+##INFO=<ID=RPB,Number=1,Type=Float,Description="Read Position Bias">
+##INFO=<ID=MDV,Number=1,Type=Integer,Description="Maximum number of high-quality nonRef reads in samples">
+##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias (v2) for filtering splice-site artefacts in RNA-seq data. Note: this version may be broken.">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GL,Number=3,Type=Float,Description="Likelihoods for RR,RA,AA genotypes (R=ref,A=alt)">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="# high-quality bases">
+##FORMAT=<ID=DV,Number=1,Type=Integer,Description="# high-quality non-reference bases">
+##FORMAT=<ID=SP,Number=1,Type=Integer,Description="Phred-scaled strand bias P-value">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="List of Phred-scaled genotype likelihoods">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	bams/vsN2NL/N2.vsN2NLA.CHM1.remap.chm1coords.bam
+chr1	120537647	.	T	C	100	.	DP=150	GT	1/1
+chr1	120538111	.	A	G	100	.	DP=148	GT	1/1
+chr1	120538113	.	A	G	100	.	DP=148	GT	1/1
+chr1	120538184	.	G	A	100	.	DP=148	GT	1/1
+chr1	120538201	.	C	T	100	.	DP=148	GT	1/1
+chr1	120538235	.	A	G	100	.	DP=148	GT	1/1
+chr1	120538259	.	C	T	100	.	DP=148	GT	1/1
+chr1	120538364	.	G	A	100	.	DP=150	GT	1/1
+chr1	120538506	.	C	A	100	.	DP=150	GT	1/1
+chr1	120538522	.	T	C	100	.	DP=150	GT	1/1
+chr1	120538740	.	C	T	100	.	DP=150	GT	1/1
+chr1	120538825	.	G	A	100	.	DP=150	GT	1/1
+chr1	120538892	.	G	A	100	.	DP=150	GT	1/1
+chr1	120539213	.	G	T	100	.	DP=146	GT	1/1
+chr1	120539530	.	G	C	100	.	DP=150	GT	1/1
+chr1	120539543	.	C	A	100	.	DP=150	GT	1/1
+chr1	120539687	.	T	C	100	.	DP=150	GT	1/1
+chr1	120539742	.	G	A	100	.	DP=150	GT	1/1
+chr1	120539837	.	T	C	100	.	DP=150	GT	1/1
+chr1	120539936	.	C	G	100	.	DP=150	GT	1/1
+chr1	120541833	.	C	T	100	.	DP=150	GT	1/1
+chr1	120542330	.	T	C	100	.	DP=150	GT	1/1
+chr1	120542368	.	T	C	100	.	DP=150	GT	1/1
+chr1	120542371	.	G	A	100	.	DP=150	GT	1/1
+chr1	120542811	.	T	C	100	.	DP=150	GT	1/1
+chr1	120542930	.	A	G	100	.	DP=150	GT	1/1
+chr1	120542964	.	G	C	100	.	DP=150	GT	1/1
+chr1	120543447	.	G	A	100	.	DP=150	GT	1/1
+chr1	120543461	.	A	C	100	.	DP=150	GT	1/1
+chr1	120543682	.	T	G	100	.	DP=150	GT	1/1
+chr1	120543758	.	G	T	100	.	DP=150	GT	1/1
+chr1	120543810	.	T	C	100	.	DP=150	GT	1/1
+chr1	120543889	.	C	G	100	.	DP=150	GT	1/1
+chr1	120543899	.	A	G	100	.	DP=150	GT	1/1
+chr1	120544092	.	A	C	100	.	DP=150	GT	1/1
+chr1	120544149	.	T	C	100	.	DP=150	GT	1/1
+chr1	120544150	.	A	G	100	.	DP=150	GT	1/1
+chr1	120544190	.	A	G	100	.	DP=150	GT	1/1
+chr1	120544303	.	G	A	100	.	DP=150	GT	1/1
+chr1	120544423	.	A	G	100	.	DP=150	GT	1/1
+chr1	120544901	.	G	C	100	.	DP=150	GT	1/1
+chr1	120545448	.	C	T	100	.	DP=150	GT	1/1
+chr1	120546146	.	T	C	100	.	DP=150	GT	1/1
+chr1	120546574	.	C	T	100	.	DP=150	GT	1/1
+chr1	120546780	.	T	C	100	.	DP=150	GT	1/1
+chr1	120547611	.	G	A	100	.	DP=150	GT	1/1
+chr1	120547674	.	G	A	100	.	DP=150	GT	1/1
+chr1	120547695	.	A	G	100	.	DP=150	GT	1/1
+chr1	120547747	.	A	C	100	.	DP=150	GT	1/1
+chr1	120547926	.	C	G	100	.	DP=150	GT	1/1
+chr1	120548025	.	G	A	100	.	DP=150	GT	1/1
+chr1	120548055	.	T	C	100	.	DP=150	GT	1/1
+chr1	120551773	.	C	T	100	.	DP=150	GT	1/1
+chr1	120551940	.	A	G	100	.	DP=150	GT	1/1
+chr1	120552205	.	C	T	100	.	DP=150	GT	1/1
+chr1	120552346	.	C	T	100	.	DP=150	GT	1/1
+chr1	120552348	.	C	T	100	.	DP=150	GT	1/1
+chr1	120552660	.	G	A	100	.	DP=150	GT	1/1
+chr1	120552895	.	T	C	100	.	DP=150	GT	1/1
+chr1	120553047	.	A	G	100	.	DP=150	GT	1/1
+chr1	120553597	.	C	G	100	.	DP=150	GT	1/1
+chr1	120554020	.	C	T	100	.	DP=150	GT	1/1
+chr1	120554099	.	T	C	100	.	DP=150	GT	1/1
+chr1	120554141	.	C	A	100	.	DP=150	GT	1/1
+chr1	120554362	.	G	A	100	.	DP=150	GT	1/1
+chr1	120554381	.	T	A	100	.	DP=150	GT	1/1
+chr1	120554403	.	A	G	100	.	DP=150	GT	1/1
+chr1	120555297	.	T	C	100	.	DP=150	GT	1/1
+chr1	120555299	.	G	A	100	.	DP=150	GT	1/1
+chr1	120555383	.	T	C	100	.	DP=150	GT	1/1
+chr1	120555892	.	A	G	100	.	DP=150	GT	1/1
+chr1	120560146	.	C	A	100	.	DP=150	GT	1/1
+chr1	120561315	.	T	C	100	.	DP=150	GT	1/1
+chr1	120562410	.	T	C	100	.	DP=150	GT	1/1
+chr1	120565978	.	A	T	100	.	DP=150	GT	1/1
+chr1	120565999	.	A	G	100	.	DP=150	GT	1/1
+chr1	120566193	.	T	G	100	.	DP=150	GT	1/1
+chr1	120566665	.	G	A	100	.	DP=150	GT	1/1
+chr1	120566969	.	C	T	100	.	DP=150	GT	1/1
+chr1	120567357	.	T	C	100	.	DP=150	GT	1/1
+chr1	120567400	.	C	T	100	.	DP=150	GT	1/1
+chr1	120567697	.	T	C	100	.	DP=77	GT	1/1
+chr1	120568004	.	A	T	100	.	DP=150	GT	1/1
+chr1	120568044	.	A	G	100	.	DP=150	GT	1/1
+chr1	120568609	.	C	G	100	.	DP=150	GT	1/1
+chr1	120568610	.	A	G	100	.	DP=150	GT	1/1
+chr1	120568954	.	T	C	100	.	DP=150	GT	1/1
+chr1	120570296	.	T	G	100	.	DP=150	GT	1/1
+chr1	120570448	.	T	C	100	.	DP=130	GT	1/1
+chr1	120570454	.	G	A	100	.	DP=130	GT	1/1
+chr1	120570462	.	A	G	100	.	DP=130	GT	1/1
+chr1	120572222	.	A	T	100	.	DP=150	GT	1/1
+chr1	120574871	.	G	A	100	.	DP=150	GT	1/1
+chr1	120575068	.	T	C	100	.	DP=150	GT	1/1
+chr1	120575692	.	T	A	100	.	DP=150	GT	1/1
+chr1	120575819	.	T	C	100	.	DP=150	GT	1/1
+chr1	120578008	.	G	C	100	.	DP=150	GT	1/1
+chr1	120578114	.	A	C	100	.	DP=150	GT	1/1
+chr1	120579760	.	G	C	100	.	DP=150	GT	1/1
+chr1	120580522	.	T	C	100	.	DP=150	GT	1/1
+chr1	120580827	.	T	C	100	.	DP=150	GT	1/1
+chr1	120581285	.	A	T	100	.	DP=150	GT	1/1
+chr1	120581853	.	C	G	100	.	DP=150	GT	1/1
+chr1	120582377	.	C	T	100	.	DP=150	GT	1/1
+chr1	120583501	.	A	G	100	.	DP=150	GT	1/1
+chr1	120585251	.	T	C	100	.	DP=150	GT	1/1
+chr1	120585393	.	C	T	100	.	DP=139	GT	1/1
+chr1	120585744	.	C	G	100	.	DP=150	GT	1/1
+chr1	120585824	.	T	C	100	.	DP=150	GT	1/1
+chr1	120586204	.	G	A	100	.	DP=150	GT	1/1
+chr1	120586681	.	A	C	100	.	DP=150	GT	1/1
+chr1	120588331	.	T	G	100	.	DP=150	GT	1/1
+chr1	120591001	.	G	T	100	.	DP=90	GT	1/1
+chr1	120591044	.	G	T	100	.	DP=47	GT	1/1
+chr1	120596307	.	A	G	100	.	DP=150	GT	1/1
+chr1	120597222	.	T	C	100	.	DP=150	GT	1/1
+chr1	120597644	.	T	C	100	.	DP=150	GT	1/1
+chr1	120599427	.	C	G	100	.	DP=150	GT	1/1
+chr1	120599774	.	A	G	100	.	DP=150	GT	1/1
+chr1	120600033	.	T	C	100	.	DP=150	GT	1/1
+chr1	120601279	.	T	C	100	.	DP=150	GT	1/1
+chr1	120605471	.	G	A	100	.	DP=150	GT	1/1
+chr1	120605562	.	C	T	100	.	DP=150	GT	1/1
+chr1	120605877	.	T	C	100	.	DP=150	GT	1/1
+chr1	120605878	.	G	A	100	.	DP=150	GT	1/1
+chr1	120606582	.	T	C	100	.	DP=150	GT	1/1
+chr1	120607162	.	T	C	100	.	DP=150	GT	1/1
+chr1	120607772	.	A	T	100	.	DP=150	GT	1/1
+chr1	120607847	.	G	A	100	.	DP=150	GT	1/1
+chr1	120607892	.	A	G	100	.	DP=150	GT	1/1
+chr1	120608112	.	A	T	100	.	DP=150	GT	1/1
+chr1	120608213	.	G	C	100	.	DP=150	GT	1/1
+chr1	120608323	.	C	T	100	.	DP=150	GT	1/1
+chr1	120608387	.	A	G	100	.	DP=150	GT	1/1
+chr1	120608429	.	C	T	100	.	DP=150	GT	1/1
+chr1	120610283	.	C	T	100	.	DP=150	GT	1/1
+chr1	120610389	.	G	A	100	.	DP=150	GT	1/1
+chr1	120611496	.	C	A	100	.	DP=150	GT	1/1
+chr1	120611715	.	A	G	100	.	DP=70	GT	1/1

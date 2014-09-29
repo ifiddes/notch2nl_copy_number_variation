@@ -32,10 +32,10 @@ def call_bwa_samtools(fwd, rev, basename, cores, index):
     subprocess.Popen(call).wait()
 
 def call_ilp(basename, name):
-    Avcf, Bvcf, Cvcf, ABvcf = [os.path.join(basename, name + x + ".vcf") for x in ['.A','.B','.C','.AB']]
+    Avcf, Bvcf, Nvcf = [os.path.join(basename, name + x + ".vcf") for x in ['.A','.B','.N']]
     pngpath = os.path.join(basename, name + "_ILP.png")
-    call = ["python", "integer_linear_programming_notch2nl.py", "--A", Avcf, "--B", Bvcf, "--C", Cvcf,
-            "--AB", ABvcf, "--png", pngpath, "--name", name, "--normalize", "--save_lp_results"]
+    call = ["python", "integer_linear_programming_notch2nl.py", "--A", Avcf, "--B", Bvcf,
+            "--N", Nvcf, "--png", pngpath, "--name", name, "--normalize", "--save_lp_results"]
     subprocess.Popen(call).wait()
 
 def relabel(ax):
@@ -109,7 +109,7 @@ def main(args):
         call_bwa_samtools(args.fwd, args.rev, os.path.join(basename, args.name), args.cores, args.index)
     
     #make set of wl positions
-    wl = [x.split() for x in args.whitelist if not x.startswith("#")][1:]
+    wl = [x.split() for x in args.whitelist if not x.startswith("#")]
     wl = {x[0]:(x[1],x[2],x[3]) for x in wl}
 
     vcf_paths = [os.path.join(basename, args.name + x + ".vcf") for x in ['.N','.A','.B','.C','.D','.AB']]

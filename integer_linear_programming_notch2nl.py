@@ -332,7 +332,7 @@ def plot_it(x, A, B, pngpath, samplename):
     A = np.array(A, dtype="int")
     B = np.array(B, dtype="int")
     fig = plt.figure()
-    plt.axis([x[0], x[-1], 0, 9])
+    plt.axis([x[0], x[-1], 0, 8])
     ax = plt.gca()
     ax.axes.get_xaxis().set_ticks([])
     ax.axes.get_yaxis().set_ticks(range(1,7))

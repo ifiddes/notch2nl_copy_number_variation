@@ -1,12 +1,11 @@
-import pulp, logging, string
+import pulp
 from collections import Counter
 from itertools import izip
 from math import log, exp
 
-from abstractIlpSolving import SequenceGraphLpProblem
+from src.abstractIlpSolving import SequenceGraphLpProblem
+from jobTree.src.bioio import reverseComplement
 
-def reverse_complement(s, trans=string.maketrans("ATGC","TACG")):
-    return string.translate(s, trans)[::-1]
 
 class Block(object):
     """
@@ -18,23 +17,15 @@ class Block(object):
     Also stores all of the kmers in this block as a set.
 
     """
-    def __init__(self, subgraph, topo_sorted, default_ploidy=2):
+    def __init__(self, subgraph, topo_sorted, min_ploidy=0, max_ploidy=4):
         #a set of all kmers represented by this block
         self.kmers = set()
         self.reverse_kmers = set()
-        #save the count for debugging, after we load data
-        self.count = None
-        self.adjusted_count = None
-        #save the data penalty applied for debugging
-        self.data_penalty = None
+
         for kmer in topo_sorted:
-            #blocks do not contain kmers that are elsewhere in the genome
             if 'bad' not in subgraph.node[kmer]:
                 self.kmers.add(kmer)
-                self.reverse_kmers.add(reverse_complement(kmer))
-
-        #size of this window
-        self.size = 1.0 * len(self.kmers) / 2
+                self.reverse_kmers.add(reverseComplement(kmer))
 
         #a mapping of paralog, position pairs to variables
         #one variable for each instance of a input sequence
@@ -46,13 +37,17 @@ class Block(object):
         start_node = subgraph.node[topo_sorted[0]]
         
         #build variables for each instance
-        for para, start in izip(start_node["source"], start_node["pos"]):
-            #restrict the variable to be an integer with default_ploidy
+        for para_start in start_node["label"].split(", "):
+            para, start = para_start.split("_")
             if len(self.kmers) > 0:
-                self.variables[(para, start)] = pulp.LpVariable("{}:{}".format(
-                    para, start), default_ploidy, cat="Integer")
+                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(
+                        para, start), lowBound=min_ploidy, upBound=max_ploidy, 
+                        cat="Integer")
             else:
-                self.variables[(para, start)] = None
+                self.variables[(para, int(start))] = None
+
+    def __len__(self):
+        return len(self.kmers)
 
     def kmer_iter(self):
         """iterator over all kmers in this block"""
@@ -67,10 +62,6 @@ class Block(object):
     def get_variables(self):
         """returns all LP variables in this block"""
         return self.variables.values()
-
-    def get_size(self):
-        """returns size of block"""
-        return self.size
 
     def get_kmers(self):
         """returns set of all kmers in block"""
@@ -101,22 +92,37 @@ class KmerModel(SequenceGraphLpProblem):
     All constraints and penalty terms are automatically added to the
     SequenceGraphLpProblem to which the Model is attached (specified on
     construction).
+
+    normalizing is a factor based on regions with known copy number of 2.
+
+    This model can be fine tuned with the following parameters:
+    breakpoint_penalty: determines how much we allow neighboring variables to differ.
+        Larger values restricts breakpoints.
+    data_penalty: how much do we trust the data? Larger values locks the variables more
+        strongly to the data.
+    size_adjust: adjusts data_penalty so that more weight is given to larger blocks.
+        This reduces noise due to sequencing depth. This is plugged into a exponential
+        fit so that very large blocks are not linearly more weighted than medium blocks.
+    single_variable_weight: adjusts data_penalty so that more weight is given to blocks
+        that contain only one variable. This block contains SUN positions.
+    tightness: determines how closely we want to tie variables within a block
+        to each other. This prevents 4 and 0 being equally optimal as 2 and 2. Very small 
+        value.
     
     """
-    def __init__(self, paralogs, normalizing, breakpoint_penalty, data_penalty):
-        logging.debug("Initializing KmerModel.")
+    def __init__(self, paralogs, normalizing, breakpoint_penalty=15, data_penalty=1, 
+                size_adjust=0.1, single_variable_weight=5, tightness=0.025):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = { x : [] for x in paralogs }
 
-        self.breakpoint_penalty = breakpoint_penalty
-        self.data_penalty = data_penalty
-
         self.normalizing = normalizing
 
-        self.built = False
-        self.has_data = False
-
+        self.breakpoint_penalty = breakpoint_penalty
+        self.data_penalty = data_penalty
+        self.size_adjust = size_adjust
+        self.single_variable_weight = single_variable_weight
+        self.tightness = tightness
 
     def build_blocks(self, DeBruijnGraph):
         """
@@ -124,40 +130,38 @@ class KmerModel(SequenceGraphLpProblem):
 
         DeBruijnGraph, which is a networkx DeBruijnGraph built over the genome region of interest.
 
-        breakpoint_penalty determines the penalty that ties instances together
-
         """
         #make sure the graph has been initialized and pruned
         assert DeBruijnGraph.is_pruned and DeBruijnGraph.has_sequences
-        logging.debug("Building blocks in KmerModel.")
 
         #build the blocks, don't tie them together yet
         for subgraph, topo_sorted in DeBruijnGraph.weakly_connected_subgraphs():
             b = Block(subgraph, topo_sorted)
             self.blocks.append(b)
 
-        logging.debug("Blocks built.")
-
         for block in self.blocks:
             for para, start, variable in block.variable_iter():
                 self.block_map[para].append([start, variable, block])
 
-        logging.debug("block_map built.")
-
-        #now sort these maps and start tying variables together
+        #sort the block maps by start positions
         for para in self.block_map:
             self.block_map[para] = sorted(self.block_map[para], key = lambda x: x[0])
-
+        
+        #now we tie the blocks together
+        for para in self.block_map:
             #filter out all blocks without variables (no kmers)
             variables = [v for s, v, b in self.block_map[para] if v is not None]
+            for i in xrange(1, len(variables)):
+                var_a, var_b = variables[i-1], variables[i]
+                self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpoint_penalty)
 
-            if b.get_size() > 0:
-                for i in xrange(1, len(variables)):
+        #now we tie each variable within a block together to evenly distribute the mass
+        for block in self.blocks:
+            variables = block.get_variables()
+            if len(variables) > 1:
+                for i in xrange(len(variables)):
                     var_a, var_b = variables[i-1], variables[i]
-                    self.constrain_approximately_equal(var_a, var_b, self.breakpoint_penalty)
-
-        logging.debug("Block variables tied together; block_map sorted.")
-        self.built = True
+                    self.constrain_approximately_equal(var_a, var_b, penalty=self.tightness)
 
 
     def introduce_data(self, kmerCounts, k1mer_size=49):
@@ -174,48 +178,52 @@ class KmerModel(SequenceGraphLpProblem):
         are weighted more.
 
         """
-        logging.debug("Starting to introduce {} kmers to model.".format(len(kmerCounts)))
 
         for block in self.blocks:
-            if block.get_size() > 0:
-                block.count = sum( kmerCounts.get(x, 0) for x in block.get_kmers() )
-                block.count += sum( kmerCounts.get(x, 0) for x in block.get_reverse_kmers() )
+            if len(block) > 0:
+                count = sum( kmerCounts.get(x, 0) for x in block.get_kmers() )
+                count += sum( kmerCounts.get(x, 0) for x in block.get_reverse_kmers() )
 
-                block.adjusted_count = 1.0 * block.count / ( block.size * self.normalizing )
+                adjusted_count = 2.0 * count / ( len(block) * self.normalizing )
 
-                size_adjust = log(block.size)
-                #value_adjust = exp(3.327 - 1.636 * block.adjusted_count)
-                block.data_penalty = self.data_penalty * size_adjust# * value_adjust
+                #weight larger blocks more (data less noisy)
+                dp = self.data_penalty * log(exp(1) + len(block) * self.size_adjust)
 
-                self.constrain_approximately_equal(block.get_adjusted_count(), 
-                    sum(block.get_variables(), block.data_penalty))
+                #give larger weight to blocks with only one variable
+                #since this block contains unique sequence
+                if len(block.get_variables()) == 1:
+                    data_penalty *= self.single_variable_weight
 
-        self.has_data = True
-
-    def report_copy_number(self):
+                self.constrain_approximately_equal(adjusted_count, 
+                    sum(block.get_variables()), penalty=dp)
+                
+    def report_copy_map(self):
         """
-        Reports copy number from solved ILP problem. Loops over the block_map class member
-        and reports the linear copy number calls forggg each paralog.
+        Reports copy number for the solved ILP problem.
         """
-        #logging.debug("Reporting copy number from solved problem")
-
-        copy_map = { x : [] for x in self.block_map.keys() }
-
+        copy_map = defaultdict(list)
+        #find maximum position
+        max_pos = max(x[0]+len(x[2]) for y in self.block_map.values() for x in y)
         for para in self.block_map:
-            for start, var, block in self.block_map[para]:
-                num_vars = len(block.get_variables())
-                if self.is_solved and var is not None:
-                    c = pulp.value(var)
-                    copy_map[para].append([start, block.count, block.size, 
-                        round(block.adjusted_count,3), block.data_penalty, num_vars, 
-                        round(block.adjusted_count/num_vars, 3), c])
-                elif var is not None:
-                    copy_map[para].append([start, block.count, block.size, 
-                        round(block.adjusted_count,3), block.data_penalty, num_vars, 
-                        round(block.adjusted_count/num_vars, 3), "NA"])
+            #find the first variable for this one and extrapolate backwards
+            for i in xrange(len(self.block_map[para])):
+                start, var, block = self.block_map[para][i]
+                if var is not None:
+                    prevVal = pulp.value(var)
+                    for j in xrange(start):
+                        copy_map[para].append(prevVal)
+                    break
+            for j in xrange(i+1, len(self.block_map[para])):
+                start, var, block = self.block_map[para][j - 1]
+                stop, next_var, next_block = self.block_map[para][j]
+                if var is None:
+                    c = prevVal
                 else:
-                    copy_map[para].append([start, "NA", "NA", "NA", "NA", "NA", "NA", "NA"])
-
-        tmp = [round(block.adjusted_count, 3) for block in self.blocks if block.adjusted_count is not None]
-
-        return copy_map, tmp
+                    c = pulp.value(var)
+                    prevVal = c
+                for k in xrange(start, stop):
+                    copy_map[para].append(c)
+            if k < max_pos:
+                for k in xrange(k, max_pos):
+                    copy_map[para].append(c)
+        return copy_map, max_pos

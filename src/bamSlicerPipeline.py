@@ -16,7 +16,7 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from jobTree.src.bioio import setLoggingFromOptions, logger
 
-from lib.generalLib import FullPaths, DirType
+from lib.general_lib import FullPaths, DirType
 
 from src.models import ModelWrapper
 
@@ -27,16 +27,16 @@ def parseArgs():
             help="pickled query file produced by cgquery_handler.py. Default is ./queries/queries.pickle")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
             help="base output directory that results will be written to. Default is ./output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=1.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=15.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=50.0,
+    parser.add_argument("--data_penalty", type=float, default=1.0,
             help="data penalty used for ILP model.")
-    parser.add_argument("--ILP", action="store_true",
-            help="Should the ILP model be ran on these queries?")
-    parser.add_argument("--full", action="store_true",
-            help="Should the SUN model based on the full complement of SUNs be ran on these queries?")
-    parser.add_argument("--original", action="store_true",
-            help="Should the SUN model based on the original SUNs be ran on these queries?")
+    parser.add_argument("--no_ILP", action="store_false",
+            help="Should the ILP model NOT be ran on these queries?")
+    parser.add_argument("--no_full", action="store_false",
+            help="Should the SUN model based on the full complement of SUNs NOT be ran on these queries?")
+    parser.add_argument("--no_original", action="store_false",
+            help="Should the SUN model based on the original SUNs NOT be ran on these queries?")
     parser.add_argument("--key_file", type=str, action=FullPaths,
             default="/inside/home/cwilks/haussl_cghub.key",
             help="The key file to download protected data from cghub.")

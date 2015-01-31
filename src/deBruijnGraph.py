@@ -1,12 +1,11 @@
 import networkx as nx
-from Bio import SeqIO
-import logging, string
+
+from jobTree.src.bioio import fastaRead
+
 #I wanted to have this class inherit the nx.DiGraph() directly
 #but if I do, then finding subgraphs doesn't work correctly because I
 #want to have kmer_size be initialized on instantiation, and then
 #the copy function fails. SO has failed to help me so far.
-def reverse_complement(s, trans=string.maketrans("ATGC","TACG")):
-    return string.translate(s, trans)[::-1]
 
 
 class DeBruijnGraph(object):
@@ -65,19 +64,17 @@ class DeBruijnGraph(object):
             self.reverse_normalizing_kmers.add(reverse_complement(str(seqRecord.seq[i:i+k]).upper()))
 
 
-    def add_sequences(self, seqRecord):
+    def add_sequences(self, name, seq):
         """
-        Adds k1mers to the graph from a Biopython seqRecord. Edges are built as
-        the k1mers are loaded.
+        Adds k1mers to the graph. Edges are built as the k1mers are loaded.
 
         """
         k = self.kmer_size - 1
-        name = seqRecord.name
         self.paralogs.add(name)
 
         for i in xrange(len(seqRecord)-k):
             #left and right k-1mers
-            km1L, km1R = str(seqRecord.seq[i:i+k]).upper(), str(seqRecord.seq[i+1:i+k+1]).upper()
+            km1L, km1R = seq[i:i+k].upper(), seq[i+1:i+k+1].upper()
 
             if self.G.has_node(km1L) is not True:
                 self.G.add_node(km1L, pos=[i], source=[name], count=1)
@@ -100,7 +97,6 @@ class DeBruijnGraph(object):
         self.kmers.add(km1R)
 
         self.has_sequences = True
-        logging.debug("{} added to DeBruijnGraph.".format(name))
 
 
     def prune_graph(self):

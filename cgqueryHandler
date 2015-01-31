@@ -17,7 +17,7 @@ from lib.general_lib import FullPaths
 #because people suck
 non_chr_names = ['GRCh37-lite','GRCh37']
 
-def parse_args(args):
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--genomes", "-g", nargs="+", required=True, 
             help="Genomes to send to cgquery.")
@@ -34,7 +34,8 @@ def parse_args(args):
     parser.add_argument("--out", "-o", default="queries/queries.pickle", type=argparse.FileType("wb"), 
             action=FullPaths, 
             help="Location to write out the pickled queries to. Default = queries/queries.pickle")
-    return parser.arse_args()
+    parser.add_argument("--debug_cutoff", type=int)
+    return parser.parse_args()
 
 
 def search_metadata(genomes, tissue_types, size, study, library_strategy):
@@ -74,21 +75,28 @@ def build_bamslicer_query(analysis, refassem_short_name, ranges):
     if refassem_short_name in non_chr_names:
         ranges = [x.replace("chr","") for x in ranges]
     formatted_ranges = "".join(["&range=", "&range=".join(ranges)]) 
-    base_path = "https://slicer.cghub.ucsc.edu/analyses/{}/slices?ref={}&format=bam".format(analysis, refassem_short_name)
+    base_path = "https://slicer.cghub.ucsc.edu/analyses/{}/slices?ref={}&format=bam".format(analysis,
+            refassem_short_name)
     query_string = "".join([base_path, formatted_ranges])
     return query_string
 
 
 def main():
-    args = parse_args(args)
-    xml_list = search_metadata(args.genomes, args.tissue_types, args.size, args.study, args.library_strategy)
+    args = parse_args()
+    xml_list = search_metadata(args.genomes, args.tissue_types, args.size, args.study, 
+            args.library_strategy)
     analysis_dict = parse_metadata_xml(xml_list)
     
     query_dict = {}
     for analysis, refassem_short_name in analysis_dict.iteritems():
         query_string = build_bamslicer_query(analysis, refassem_short_name, args.target_range)
+        query_dict[analysis] = query_string
 
-    pickle.dump(args.out, query_dict)
+    if args.debug_cutoff is None:
+        pickle.dump(query_dict, args.out)
+    else:
+        t = dict(query_dict.items()[:args.debug_cutoff])
+        pickle.dump(t, args.out)
 
 
 if __name__ == '__main__':

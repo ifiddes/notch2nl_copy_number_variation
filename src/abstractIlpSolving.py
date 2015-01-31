@@ -1,4 +1,4 @@
-import pulp, logging
+import pulp
 """
 All code in this file written by Adam Novak
 """
@@ -72,8 +72,6 @@ class PenaltyTree(object):
         # This holds the list of sum variables
         sums = []
         while len(collecting) > 1:
-            logging.debug("Collecting {} terms in groups of {}".format(len(
-                collecting), self.degree))
             for i in xrange(0, len(collecting), self.degree):
                 # This holds the terms we have collected for this sum
                 collected = []
@@ -158,7 +156,7 @@ class SequenceGraphLpProblem(object):
 
     def solve(self, save=None):
         """
-        Solve the LP problem with GLPK
+        Solve the LP problem with CBC
         
         If save is specified, it is a filename to which to save the LP problem
         in LP format.
@@ -167,23 +165,11 @@ class SequenceGraphLpProblem(object):
         
         """
         # Set up the penalties described by the penalty tree
-        logging.info("Setting up penalties")
         self.penalties.set_objective(self.problem)
-        if save is not None:
-            logging.info("Saving problem to {}".format(save))
-            self.problem.writeLP(save)
         # Solve the problem
-        pulp.COIN_CMD(path="/inside/home/ifiddes/.local/lib/python2.7/site-packages/pulp/solverdir/cbc-64")
-        status = self.problem.solve(pulp.PULP_CBC_CMD())
-        logging.info("Solution status: {}".format(pulp.LpStatus[status]))        
-        if len(self.problem.variables()) < 20:
-            # It's short enough to look at.
-            for var in self.problem.variables():
-                logging.debug("\t{} = {}".format(var.name, pulp.value(var)))
-        # Report the total penalty we got when we solved.
-        logging.info("Penalty: {}".format(pulp.value(self.problem.objective)))
+        status = self.problem.solve(pulp.COIN_CMD(path="/inside/home/ifiddes/bin/cbc")) 
         if status != pulp.constants.LpStatusOptimal:
             self.is_solved = False
-            #raise Exception("Unable to solve problem optimally.")
+            raise Exception("Unable to solve problem optimally.")
         else:
             self.is_solved = True

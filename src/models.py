@@ -30,7 +30,7 @@ class ModelWrapper(Target):
         self.key = open(keyFile).readline().rstrip()
 
     def downloadQuery(self):
-        self.fastqFile = os.path.join(self.getGlobalTempDir(), self.uuid + ".fastq")
+        self.fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
         system(("curl --silent {queryString} -u {key} | samtools bamshuf -Ou /dev/stdin {tmpDir}/tmp"
                 " | samtools bam2fq /dev/stdin > {fastqFile}").format(key=self.key, 
                 queryString=self.queryString, fastqFile=self.fastqFile))
@@ -133,45 +133,22 @@ class AbstractSunModel(Target):
         #I am not refactoring this legacy code, sorry.
         outVcfs = []
         for para, vcf in self.vcfs.iteritems():
-            outVcfs.append(os.path.join(self.getGlobalTempDir(), "{uuid}.{header}.{para}.vcf".format(
+            outVcfs.append(os.path.join(self.getLocalTempDir(), "{uuid}.{header}.{para}.vcf".format(
                     uuid=self.uuid, header=self.header, para=para)))
             system(("python ./src/getsitecoverage.py -t SNV -b {in} -v {vcf} "
                     "-i {chr1} --chr > {out}").format(in=bamIn, vcf=vcf, chr1=self.chr1,
-                    out=outVcfs[-1]))        
+                    out=outVcfs[-1]))
+        return outVcfs
 
     def plot_histograms(self,data, path):
-        N = zip(*data['N'])[1]
-        A = zip(*data['A'])[1]
-        B = zip(*data['B'])[1]
-        C = zip(*data['C'])[1]
-        D = zip(*data['D'])[1]
+        f, plts = plt.subplots(5, sharex=True)
         fig = plt.figure()
-        f, (axN2, axA, axB, axC, axD) = plt.subplots(5, sharex=True)
-        axN2.set_ylabel("NOTCH2", size=9)
-        axN2.hist(1-np.asarray(N), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
-        axN2.yaxis.tick_right()
-        setp(axN2.get_yticklabels(), fontsize=8)
-        axN2.set_yticklabels(relabel(axN2))
-        axA.set_ylabel("NOTCH2NL-A", size=9)
-        axA.hist(np.asarray(A), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
-        axA.yaxis.tick_right()
-        setp(axA.get_yticklabels(), fontsize=8)
-        axA.set_yticklabels(relabel(axA))
-        axB.set_ylabel("NOTCH2NL-B", size=9)
-        axB.hist(np.asarray(B), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
-        axB.yaxis.tick_right()
-        setp(axB.get_yticklabels(), fontsize=8)
-        axB.set_yticklabels(relabel(axB))
-        axC.set_ylabel("NOTCH2NL-C", size=9)
-        axC.hist(np.asarray(C), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
-        axC.yaxis.tick_right()
-        setp(axC.get_yticklabels(), fontsize=8)
-        axC.set_yticklabels(relabel(axC))
-        axD.set_ylabel("NOTCH2NL-D", size=9)
-        axD.hist(np.asarray(D), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
-        axD.yaxis.tick_right()
-        setp(axD.get_yticklabels(), fontsize=8)
-        axD.set_yticklabels(relabel(axD))
+        for para, p in izip(sorted(data.keys()), plts):
+            v = zip(*data[para])[1]
+            p.set_ylabel("{}".format(para), size=9)
+            p.hist(1-np.asarray(v), bins=30, range=(0.0,1.0), color='#1e90ff', normed=True)
+            p.yaxis.tick_right()
+            setp(p.get_yticklabels(), fontsize=8)
         plt.savefig(path)
 
     def makeHg38Bedgraphs(self, resultDict):
@@ -187,12 +164,12 @@ class AbstractSunModel(Target):
 
     def run(self):
         #align the extracted reads to the index
-        sortedBamPath = os.path.join(self.getGlobalTempDir(), "{uuid}.{header}.sorted.bam".format(
+        sortedBamPath = os.path.join(self.getLocalTempDir(), "{uuid}.{header}.sorted.bam".format(
                     uuid=self.uuid, header=self.header))
         system("bwa mem -v 1 {index} {fastq} | samtools view -bS - | samtools sort - {out}".format(
                     index=self.index, fastq=self.fastqFile, out=sortedBamPath))
         #filter the SAM records and find the site coverage at each locus, creating VCFs
-        remappedBamPath = os.path.join(self.getGlobalTempDir(), 
+        remappedBamPath = os.path.join(self.getLocalTempDir(), 
                 "{uuid}.{header}.remapped.sorted.bam".format(uuid=self.uuid, header=self.header))
         self.filterSam(sortedBamPath, remappedBamPath)
         outVcfs = self.runGetSiteCoverage(remappedBamPath)        
@@ -216,28 +193,64 @@ class AbstractSunModel(Target):
 
 
 class IlpModel(Target):
-    def __init__(self, baseOutDir, bpPenalty, dataPenalty, fastqFile, uuid):
+    def __init__(self, baseOutDir, bpPenalty, dataPenalty, fastqFile, uuid, graph):
         Target.__init__(self)
+        self.baseOutDir = baseOutDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.fastqFile = fastqFile
-        self.graph = "./data/graphs/clustal_with_reverse.pickle"
+        self.graph = graph
 
         self.outDir = os.path.join(baseOutDir, self.uuid)
         if not os.path.exists(self.outDir):
             os.mkdir(self.outDir)
 
+    def plot_result(self, copy_map, max_pos):
+        #first do overlaid figure
+        arrays = {}
+        colors = ["#4D4D4D","#5DA5DA","#FAA43A","#60BD68","#F17CB0"]
+        xvals = np.array(range(max_pos+1),dtype="int")
+        sorted_paralogs = sorted(copy_map.keys())
+        for para in sorted_paralogs:
+            arrays[para] = np.array(copy_map[para], dtype="int")
+        fig = plt.figure()
+        plt.axis([0, max_pos+1, 0, 14])
+        ax = plt.gca()
+        total = sum(arrays.values())
+        patches = []
+        for i, para in enumerate(sorted_paralogs):
+            plt.fill_between(xvals, total, color=colors[i], alpha=0.7)
+            total -= arrays[para]
+            patches.append(mpatches.Patch(color=colors[i], label=para, alpha=0.7))
+        plt.legend(patches, sorted_paralogs)
+        plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
+        plt.ylabel("Inferred Copy Number")
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".png"), format="png")
+        plt.close()
+        #now do individual plots on one png
+        fig, plots = plt.subplots(len(sorted_paralogs), sharex=True, sharey=True)
+        plt.yticks((0, 1, 2, 3))
+        for i, (p, para) in enumerate(izip(plots, sorted_paralogs)):
+            p.axis([0, max_pos+1, 0, 3])
+            p.fill_between(xvals, copy_map[para], color=colors[i], alpha=0.7)
+            p.set_title("{} Copy Number".format(para))
+            p.scatter(xvals, copy_map[para], color=colors[i], alpha=0.7, s=0.3)
+        fig.subplots_adjust(hspace=0.5)
+        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".separated.png"), format="png")
+        plt.close()
+
     def run(self):
         jfFile = os.path.join(self.getGLobalTempDir(), self.uuid + ".jf")
-        countFile = os.path.join(self.getGlobalTempDir(), self.uuid + ".Counts.fa")
+        countFile = os.path.join(self.getLocalTempDir(), self.uuid + ".Counts.fa")
         system("jellyfish count -m 49 -s 300M -o {jfFile} {fastq}".format(jfFile=jfFile,
                 fastqFile=self.fastqFile))
         system("jellyfish dump -L 2 {jfFile} > {countFile}".format(jfFile=jfFile, 
                 countFile=countFile))
         
         G = pickle.load(self.graph)
-        with open(args.sample_counts) as f:
+        with open(countFile) as f:
             #using string translate has been shown to be faster than using any other means
             #of removing characters from a string
             rm = ">\n"
@@ -251,11 +264,13 @@ class IlpModel(Target):
                     data_counts[rc] = int(count.translate(None, rm))
 
         #adjust ILP penalties for coverage in this sequencing run
-        normalizing = 1.0 * ( sum(data_counts.get(x, 0) for x in G.normalizing_kmers) \
-                + sum(data_counts.get(x, 0) for x in G.reverse_normalizing_kmers) ) \
-                / len(G.normalizing_kmers)
+        normalizing = 1.0 * (( sum(data_counts.get(x, 0) for x in G.normalizing_kmers) 
+                + sum(data_counts.get(x, 0) for x in G.reverse_normalizing_kmers) ) 
+                / len(G.normalizing_kmers))
 
         P = KmerModel(G.paralogs, normalizing, self.bpPenalty, self.dataPenalty)
         P.build_blocks(G)
         P.introduce_data(data_counts)
         P.solve()
+        copy_map, max_pos = P.report_copy_map()
+        plot_result(copy_map, max_pos)

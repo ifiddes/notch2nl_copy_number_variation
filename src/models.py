@@ -9,15 +9,14 @@ import numpy as np
 from pylab import setp
 
 from src.kmerModel import KmerModel
-from src.sunIlpModel import sunIlpModel
 
 from jobTree.scriptTree.target import Target
-from jobTree.src.bioio import system, reverseComplement
+from jobTree.src.bioio import system, logger, reverseComplement
 
 
 class ModelWrapper(Target):
     def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, fullSun, originalSun, 
-                Ilp, keyFile):
+                Ilp, keyFile, graph):
         Target.__init__(self)
         self.uuid = uuid
         self.queryString = queryString
@@ -28,92 +27,32 @@ class ModelWrapper(Target):
         self.doOriginalSun = originalSun
         self.doIlp = Ilp
         self.key = open(keyFile).readline().rstrip()
+        self.graph = graph
 
     def downloadQuery(self):
-        self.fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
-        system(("curl --silent {queryString} -u {key} | samtools bamshuf -Ou /dev/stdin {tmpDir}/tmp"
-                " | samtools bam2fq /dev/stdin > {fastqFile}").format(key=self.key, 
-                queryString=self.queryString, fastqFile=self.fastqFile))
+        fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
+        logger.info("Downloading {} to {}".format(self.uuid, fastqFile))
+        system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
+                """| samtools bam2fq /dev/stdin > {}""".format(self.queryString, 
+                "haussler:" + self.key, os.path.join(self.getLocalTempDir(), "tmp"), fastqFile))
+        return fastqFile
 
     def run(self):
-        self.downloadQuery()
-        if self.doFullSun is True:
-            Target.addChildTarget(FullSunModel(self.baseOutDir, self.fastqFile, self.uuid))
-        if self.doOriginalSun is True:
-            Target.addChildTarget(OriginalSunModel(self.baseOutDir, self.fastqFile, self.uuid))
-        if self.doIlp is True:
-            Target.addChildTarget(IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, 
-                    self.fastqFile, self.uuid))
+        fastqFile = self.downloadQuery()
+        if os.path.getsize(fastqFile) < 513:
+            raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
+        #if self.doFullSun is not False:
+        #    self.addChildTarget(FullSunModel(self.baseOutDir, self.fastqFile, self.uuid))
+        if self.doOriginalSun is not False:
+            sun = OriginalSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
+            sun.run()
+        if self.doIlp is not False:
+            ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, fastqFile, 
+                    self.uuid, self.graph, self.getLocalTempDir())
+            ilp.run()
 
 
-class FullSunModel(AbstractSunModel):
-    def __init__(self, baseOutDir, fastqFile, uuid):
-        Target.__init__(self)
-
-        self.uuid = uuid
-        self.fastqFile = fastqFile
-
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
-
-        ###########
-        # these are hard coded files. Shitty but whatever.
-        ###########
-
-        #his is used to differentiate output files from the OriginalSunModel
-        self.header = "fullSun"
-        #index is a bwa index of the region to be aligned to (one copy)
-        self.index = "./data/index/hg38_n2.masked.fa"
-        #whitelist is a text file of whitelisted SUN positions for the FullSunModel
-        with open("./data/textfiles/full_whitelist.txt") as wl:
-            wl_list = [x.split() for x in wl if not x.startswith("#")]
-        #dict mapping genome positions to which paralog has a SUN at that position
-        self.wl = {x[1] : x[0] for x in wl}
-        #vcf files used for this model
-        self.vcfs = {x : os.path.join("data", "full_vcfs", x + ".vcf.gz") \
-                for x in ["A", "B", "C", "D", "N"]}
-        #full chr1 fasta sequence used for this model
-        self.chr1 = "./data/fastas/hg38_chr1_repeat_masked.fa"
-
-    def run(self):
-        AbstractSunModel.run(self)
-
-class OriginalSunModel(AbstractSunModel):
-    def __init__(self, baseOutDir, fastqFile, uuid):
-        Target.__init__(self)
-        self.uuid = uuid
-        self.fastqFile = fastqFile
-
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
-
-        ###########
-        # these are hard coded files. Shitty but whatever.
-        ###########
-
-        #his is used to differentiate output files from the OriginalSunModel
-        self.header = "originalSun"
-        #index is a bwa index of the region to be aligned to (one copy)
-        self.index = "./data/index/hs_n2.masked.fa"
-        #whitelist is a text file of whitelisted SUN positions for the FullSunModel
-        with open("./data/textfiles/original_whitelist.txt") as wl:
-            wl_list = [x.split() for x in wl if not x.startswith("#")]
-        #dict mapping genome positions to which paralog has a SUN at that position
-        self.wl = {x[1] : x[0] for x in wl_list}
-        #vcf files used for this model
-        self.vcfs = {x : os.path.join("data", "original_vcfs", x + ".vcf.gz") \
-                for x in ["A", "B", "C", "D", "N"]}
-        #full chr1 fasta sequence used for this model
-        self.chr1 = "./data/fastas/hg19_ucsc.fa"
-
-    def run(self):
-        AbstractSunModel.run(self)
-
-
-class AbstractSunModel(Target):
-
+class AbstractSunModel(object):
     def filterSam(self, bamIn, bamOut):
         header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
 
@@ -130,14 +69,13 @@ class AbstractSunModel(Target):
         outfile.close()
 
     def runGetSiteCoverage(self, bamIn):
-        #I am not refactoring this legacy code, sorry.
+        #I am not refactoring getsitecoverage.py sorry.
         outVcfs = []
         for para, vcf in self.vcfs.iteritems():
-            outVcfs.append(os.path.join(self.getLocalTempDir(), "{uuid}.{header}.{para}.vcf".format(
-                    uuid=self.uuid, header=self.header, para=para)))
-            system(("python ./src/getsitecoverage.py -t SNV -b {in} -v {vcf} "
-                    "-i {chr1} --chr > {out}").format(in=bamIn, vcf=vcf, chr1=self.chr1,
-                    out=outVcfs[-1]))
+            outVcfs.append(os.path.join(self.getLocalTempDir(), "{}.{}.{}.vcf".format(
+                    self.uuid, self.header, para)))
+            system(("python ./src/getsitecoverage.py -t SNV -b {} -v {} "
+                    "-i {} --chr > {}").format(bamIn, vcf, self.chr1, outVcfs[-1]))
         return outVcfs
 
     def plot_histograms(self,data, path):
@@ -153,8 +91,7 @@ class AbstractSunModel(Target):
 
     def makeHg38Bedgraphs(self, resultDict):
         for para in resultDict:
-            path = os.path.join(self.outDir, "{uuid}.{header}.bedGraph".format(uuid=self.uuid,
-                    header=self.header))
+            path = os.path.join(self.outDir, "{}.{}.bedGraph".format(self.uuid, self.header))
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
                     "yLineMark=0.2 viewLimits=0.0:0.4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
@@ -164,13 +101,13 @@ class AbstractSunModel(Target):
 
     def run(self):
         #align the extracted reads to the index
-        sortedBamPath = os.path.join(self.getLocalTempDir(), "{uuid}.{header}.sorted.bam".format(
-                    uuid=self.uuid, header=self.header))
-        system("bwa mem -v 1 {index} {fastq} | samtools view -bS - | samtools sort - {out}".format(
-                    index=self.index, fastq=self.fastqFile, out=sortedBamPath))
+        sortedBamPath = os.path.join(self.localTempDir, "{}.{}.sorted.bam".format(self.uuid, 
+                self.header))
+        system("bwa mem -v 1 {} {} | samtools view -bS - | samtools sort - {}".format(self.index, 
+                self.fastqFile, sortedBamPath))
         #filter the SAM records and find the site coverage at each locus, creating VCFs
-        remappedBamPath = os.path.join(self.getLocalTempDir(), 
-                "{uuid}.{header}.remapped.sorted.bam".format(uuid=self.uuid, header=self.header))
+        remappedBamPath = os.path.join(self.localTempDir, 
+                "{}.{}.remapped.sorted.bam".format(self.uuid, self.header))
         self.filterSam(sortedBamPath, remappedBamPath)
         outVcfs = self.runGetSiteCoverage(remappedBamPath)        
 
@@ -185,22 +122,88 @@ class AbstractSunModel(Target):
                         val = float(record.INFO["ALTFRAC"][0])
                         resultDict[paralog].append((record.POS, val))
 
-        self.plot_histograms(resultDict, os.path.join(self.outDir, 
-                "{uuid}.{header}.png".format(uuid=self.uuid, header=self.header)))
+        self.plot_histograms(resultDict, os.path.join(self.outDir, "{}.{}.png".format(self.uuid, 
+                self.header)))
         self.makeHg38Bedgraphs(resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
 
 
-class IlpModel(Target):
-    def __init__(self, baseOutDir, bpPenalty, dataPenalty, fastqFile, uuid, graph):
-        Target.__init__(self)
+class FullSunModel(AbstractSunModel):
+    def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
+        self.uuid = uuid
+        self.fastqFile = fastqFile
+        self.localTempDir = localTempDir
+
+        self.outDir = os.path.join(baseOutDir, self.uuid)
+        if not os.path.exists(self.outDir):
+            os.mkdir(self.outDir)
+
+        ###########
+        # these are hard coded files. Shitty but whatever.
+        ###########
+
+        #his is used to differentiate output files from the OriginalSunModel
+        self.header = "fullSun"
+        #index is a bwa index of the region to be aligned to (one copy)
+        self.index = "./data/full_sun/index/hg38_n2.masked.fa"
+        #whitelist is a text file of whitelisted SUN positions for the FullSunModel
+        with open("./data/full_sun/whitelist.txt") as wl:
+            wl_list = [x.split() for x in wl if not x.startswith("#")]
+        #dict mapping genome positions to which paralog has a SUN at that position
+        self.wl = {x[1] : x[0] for x in wl_list}
+        #vcf files used for this model
+        self.vcfs = {x : os.path.join("data", "full_sun", "vcfs", x + ".vcf.gz") \
+                for x in ["A", "B", "C", "D", "N"]}
+        #full chr1 fasta sequence used for this model
+        self.chr1 = "./data/chr1_fastas/hg38_chr1_repeat_masked.fa"
+
+    def run(self):
+        AbstractSunModel.run(self)
+
+
+class OriginalSunModel(AbstractSunModel):
+    def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
+        self.uuid = uuid
+        self.fastqFile = fastqFile
+        self.localTempDir = localTempDir
+
+        self.outDir = os.path.join(baseOutDir, self.uuid)
+        if not os.path.exists(self.outDir):
+            os.mkdir(self.outDir)
+
+        ###########
+        # these are hard coded files. Shitty but whatever.
+        ###########
+
+        #his is used to differentiate output files from the OriginalSunModel
+        self.header = "originalSun"
+        #index is a bwa index of the region to be aligned to (one copy)
+        self.index = "./data/original_sun/index/hs_n2.masked.fa"
+        #whitelist is a text file of whitelisted SUN positions for the FullSunModel
+        with open("./data/original_sun/whitelist.txt") as wl:
+            wl_list = [x.split() for x in wl if not x.startswith("#")]
+        #dict mapping genome positions to which paralog has a SUN at that position
+        self.wl = {x[1] : x[0] for x in wl_list}
+        #vcf files used for this model
+        self.vcfs = {x : os.path.join("data", "original_sun", "vcfs", x + ".vcf.gz") \
+                for x in ["A", "B", "C", "D", "N"]}
+        #full chr1 fasta sequence used for this model
+        self.chr1 = "./data/chr1_fastas/hg19_ucsc.fa"
+
+    def run(self):
+        AbstractSunModel.run(self)
+
+
+class IlpModel(object):
+    def __init__(self, baseOutDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir):
         self.baseOutDir = baseOutDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.fastqFile = fastqFile
         self.graph = graph
+        self.localTempDir = localTempDir
 
         self.outDir = os.path.join(baseOutDir, self.uuid)
         if not os.path.exists(self.outDir):
@@ -242,12 +245,10 @@ class IlpModel(Target):
         plt.close()
 
     def run(self):
-        jfFile = os.path.join(self.getGLobalTempDir(), self.uuid + ".jf")
-        countFile = os.path.join(self.getLocalTempDir(), self.uuid + ".Counts.fa")
-        system("jellyfish count -m 49 -s 300M -o {jfFile} {fastq}".format(jfFile=jfFile,
-                fastqFile=self.fastqFile))
-        system("jellyfish dump -L 2 {jfFile} > {countFile}".format(jfFile=jfFile, 
-                countFile=countFile))
+        jfFile = os.path.join(self.localTempDir, self.uuid + ".jf")
+        countFile = os.path.join(self.localTempDir, self.uuid + ".Counts.fa")
+        system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
+        system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
         
         G = pickle.load(self.graph)
         with open(countFile) as f:

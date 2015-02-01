@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-
+"""
+Code by Adam Ewing.
+"""
 import argparse
 import pysam
 import vcf

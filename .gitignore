@@ -1,4 +1,6 @@
-remapped/*
+data/chr1_fastas/*fasta
+data/chr1_fastas/*fa
+output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -15,7 +17,6 @@ develop-eggs/
 dist/
 downloads/
 eggs/
-lib/
 lib64/
 parts/
 sdist/

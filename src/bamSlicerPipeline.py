@@ -9,7 +9,7 @@ Debruijn-Kmer copy number analysis.
 
 """
 
-import argparse
+import os, argparse
 import cPickle as pickle
 
 from jobTree.scriptTree.target import Target
@@ -20,7 +20,7 @@ from lib.general_lib import FullPaths, DirType
 
 from src.models import ModelWrapper
 
-def parseArgs():
+def buildParser():
     parser = argparse.ArgumentParser()
     
     parser.add_argument("--queries", "-q", type=argparse.FileType("rb"), default="./queries/queries.pickle",
@@ -40,40 +40,34 @@ def parseArgs():
     parser.add_argument("--key_file", type=str, action=FullPaths,
             default="/inside/home/cwilks/haussl_cghub.key",
             help="The key file to download protected data from cghub.")
-
-    Stack.addJobTreeOptions(parser)
-    args = parser.parse_args()
-    setLoggingFromOptions(args)
-    return args
+    parser.add_argument("--graph", type=str, action=FullPaths,
+            default="data/graphs/Notch2NL.pickle")
+    return parser
 
 
-def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, fullSun, originalSun, Ilp, keyFile):
+def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, fullSun, originalSun, Ilp, 
+    keyFile, graph):
+    logger.info("Starting to build analyses")
     for uuid, queryString in queries.iteritems():
         target.addChildTarget(ModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, 
-                fullSun, originalSun, Ilp, keyFile))
+                fullSun, originalSun, Ilp, keyFile, graph))
 
 
 def main():
-    args = parseArgs()
+    parser = buildParser()
+    Stack.addJobTreeOptions(parser)
+    args = parser.parse_args()
+    setLoggingFromOptions(args)
     queries = pickle.load(args.queries)
 
-    if not os.path.exists(args.queries):
-        raise RuntimeError("Query file {} does not exist!".format(args.queries))
-
-    if not args.ILP and not args.full and not args.original:
-        raise argparse.ArgumentTypeError(("Did not pick any of the three models."
-            " Set ILP/full/original flags."))
-
-    if not os.path.exists(args.output):
-        logger.info("Making output dir {}".format(args.output))
-        os.mkdir(args.output)
-    else:
-        logger.info("Output dir {} exists".format(args.output))
-
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(queries, args.output, args.breakpoint_penalty,
-            args.data_penalty, args.full, args.original, args.ILP, args.key_file))
+            args.data_penalty, args.no_full, args.no_original, args.no_ILP, args.key_file,
+            args.graph))).startJobTree(args)
 
+
+    if i != 0:
+        raise RuntimeError("Got failed jobs")
 
 if __name__ == "__main__":
-    from src.bam_slicer_pipeline import *
+    from src.bamSlicerPipeline import *
     main()

@@ -4,7 +4,7 @@ from jobTree.src.bioio import fastaRead
 
 #I wanted to have this class inherit the nx.DiGraph() directly
 #but if I do, then finding subgraphs doesn't work correctly because I
-#want to have kmer_size be initialized on instantiation, and then
+#want to have kmerSize be initialized on instantiation, and then
 #the copy function fails. SO has failed to help me so far.
 
 
@@ -15,10 +15,10 @@ class DeBruijnGraph(object):
 
     When initialized, a kmer size must be provided.
 
-    To add sequences to this graph, pass Biopython SeqRecords to add_sequences().
-    Once you have loaded sequences, prune the graph using prune_graph().
+    Offset is the distance the first base of the aligned sequence is from the start of
+    the chromosome. Used for visualizing later.
 
-    prune_graph() removes all edges that fit into the rules below. This creates linear
+    pruneGraph() removes all edges that fit into the rules below. This creates linear
     weakly connected components which represent continuous segments of sequence
     that represent one or more paralogs and can be used to infer copy number.
 
@@ -28,18 +28,19 @@ class DeBruijnGraph(object):
     This by definition removes all cycles as well as all strong connected components.
 
     """
-    def __init__(self, kmer_size):
+    def __init__(self, kmerSize, offset):
         logging.debug("Initializing a DeBruijnGraph")
 
-        self.kmer_size = kmer_size
+        self.kmerSize = kmerSize
+        self.offset = offset
         self.G = nx.DiGraph()
         self.has_sequences = False
         self.is_pruned = False
         self.paralogs = set()
         self.kmers = set()
-        self.reverse_kmers = set()
-        self.normalizing_kmers = set()
-        self.reverse_normalizing_kmers = set()
+        self.reverseKmers = set()
+        self.normalizingKmers = set()
+        self.reverseNormalizingKmers = set()
 
     def paralogs(self):
         return list(self.paralogs)
@@ -51,25 +52,25 @@ class DeBruijnGraph(object):
         return self.G.node
 
 
-    def add_normalizing(self, seqRecord):
+    def addNormalizing(self, seqRecord):
         """
         Adds normalizing kmers to the graph. These kmers are from a region of notch2
         that is after the duplication breakpoint, and so has exactly two copies in everyone.
 
         """
-        k = self.kmer_size - 1
+        k = self.kmerSize - 1
 
         for i in xrange(len(seqRecord)-k):
-            self.normalizing_kmers.add(str(seqRecord.seq[i:i+k]).upper())
-            self.reverse_normalizing_kmers.add(reverse_complement(str(seqRecord.seq[i:i+k]).upper()))
+            self.normalizingKmers.add(str(seqRecord.seq[i:i+k]).upper())
+            self.reverseNormalizingKmers.add(reverse_complement(str(seqRecord.seq[i:i+k]).upper()))
 
 
-    def add_sequences(self, name, seq):
+    def addSequences(self, name, seq):
         """
         Adds k1mers to the graph. Edges are built as the k1mers are loaded.
 
         """
-        k = self.kmer_size - 1
+        k = self.kmerSize - 1
         self.paralogs.add(name)
 
         for i in xrange(len(seqRecord)-k):
@@ -88,7 +89,7 @@ class DeBruijnGraph(object):
 
             self.G.add_edge(km1L, km1R)
             self.kmers.add(km1L)
-            self.reverse_kmers.add(reverse_complement(km1L))
+            self.reverseKmers.add(reverse_complement(km1L))
 
         #need to count the last kmer also
         self.G.node[km1R]["pos"].append(i+1)
@@ -99,7 +100,7 @@ class DeBruijnGraph(object):
         self.has_sequences = True
 
 
-    def prune_graph(self):
+    def pruneGraph(self):
         """
         For each node, if has more than one outgoing edge remove all outgoing edges.
         Do the same for incoming edges. Also, remove all edges between nodes with
@@ -123,7 +124,7 @@ class DeBruijnGraph(object):
         logging.debug("Graph pruned.")
 
 
-    def weakly_connected_subgraphs(self):
+    def weaklyConnectedSubgraphs(self):
         """
         Yields weakly connected subgraphs and their topolgical sort.
 
@@ -131,7 +132,7 @@ class DeBruijnGraph(object):
         for subgraph in nx.weakly_connected_component_subgraphs(self.G):
             yield (subgraph, nx.topological_sort(subgraph))
 
-    def flag_nodes(self, kmer_iter):
+    def flagNodes(self, kmer_iter):
         """
         Iterates over a kmer_iter and flags nodes as being bad.
         This is used to flag nodes whose kmer is represented elsewhere

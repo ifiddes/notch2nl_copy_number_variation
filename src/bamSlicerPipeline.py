@@ -31,14 +31,8 @@ def buildParser():
             help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=1.0,
             help="data penalty used for ILP model.")
-    parser.add_argument("--no_ILP", action="store_false",
-            help="Should the ILP model NOT be ran on these queries?")
-    parser.add_argument("--no_full", action="store_false",
-            help="Should the SUN model based on the full complement of SUNs NOT be ran on these queries?")
-    parser.add_argument("--no_original", action="store_false",
-            help="Should the SUN model based on the original SUNs NOT be ran on these queries?")
     parser.add_argument("--key_file", type=str, action=FullPaths,
-            default="/inside/home/cwilks/haussl_cghub.key",
+            default="/inside/home/cwilks/haussl_new.key",
             help="The key file to download protected data from cghub.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="data/graphs/Notch2NL.pickle")
@@ -50,7 +44,7 @@ def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, fullSun, 
     logger.info("Starting to build analyses")
     for uuid, queryString in queries.iteritems():
         target.addChildTarget(ModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, 
-                fullSun, originalSun, Ilp, keyFile, graph))
+                keyFile, graph))
 
 
 def main():
@@ -61,9 +55,7 @@ def main():
     queries = pickle.load(args.queries)
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(queries, args.output, args.breakpoint_penalty,
-            args.data_penalty, args.no_full, args.no_original, args.no_ILP, args.key_file,
-            args.graph))).startJobTree(args)
-
+            args.data_penalty, args.key_file, args.graph))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

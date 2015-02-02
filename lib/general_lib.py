@@ -10,6 +10,7 @@ With contributions from Dent Earl
 import os
 import argparse
 import gzip
+import numpy as np
 
 
 class FullPaths(argparse.Action):
@@ -78,3 +79,14 @@ def FileType(f):
         return f
     else:
         raise argparse.ArgumentTypeError('FileType:%s is not a readable file' % f)
+
+
+def rejectOutliers(data, m = 2.):
+    """http://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list"""
+    if len(data) > 1:
+        d = np.abs(data - np.median(data))
+        mdev = np.median(d)
+        s = d / mdev if mdev else 0.
+        return data[s < m]
+    else:
+        return data

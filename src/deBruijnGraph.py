@@ -1,12 +1,7 @@
 import networkx as nx
-
-from jobTree.src.bioio import fastaRead
-
-#I wanted to have this class inherit the nx.DiGraph() directly
-#but if I do, then finding subgraphs doesn't work correctly because I
-#want to have kmerSize be initialized on instantiation, and then
-#the copy function fails. SO has failed to help me so far.
-
+import string
+from collections import Counter
+from jobTree.src.bioio import reverseComplement
 
 class DeBruijnGraph(object):
     """
@@ -15,10 +10,10 @@ class DeBruijnGraph(object):
 
     When initialized, a kmer size must be provided.
 
-    Offset is the distance the first base of the aligned sequence is from the start of
-    the chromosome. Used for visualizing later.
+    To add sequences to this graph, pass Biopython SeqRecords to add_sequences().
+    Once you have loaded sequences, prune the graph using prune_graph().
 
-    pruneGraph() removes all edges that fit into the rules below. This creates linear
+    prune_graph() removes all edges that fit into the rules below. This creates linear
     weakly connected components which represent continuous segments of sequence
     that represent one or more paralogs and can be used to infer copy number.
 
@@ -28,11 +23,10 @@ class DeBruijnGraph(object):
     This by definition removes all cycles as well as all strong connected components.
 
     """
-    def __init__(self, kmerSize, offset):
-        logging.debug("Initializing a DeBruijnGraph")
+    def __init__(self, kmer_size, offset):
 
-        self.kmerSize = kmerSize
         self.offset = offset
+        self.kmer_size = kmer_size
         self.G = nx.DiGraph()
         self.has_sequences = False
         self.is_pruned = False
@@ -58,47 +52,54 @@ class DeBruijnGraph(object):
         that is after the duplication breakpoint, and so has exactly two copies in everyone.
 
         """
-        k = self.kmerSize - 1
+        k = self.kmer_size - 1
 
         for i in xrange(len(seqRecord)-k):
             self.normalizingKmers.add(str(seqRecord.seq[i:i+k]).upper())
-            self.reverseNormalizingKmers.add(reverse_complement(str(seqRecord.seq[i:i+k]).upper()))
+            self.reverseNormalizingKmers.add(reverseComplement(str(seqRecord.seq[i:i+k]).upper()))
 
 
     def addSequences(self, name, seq):
         """
-        Adds k1mers to the graph. Edges are built as the k1mers are loaded.
+
+        Adds k1mers to the graph.Edges are built as the k1mers are loaded.
 
         """
-        k = self.kmerSize - 1
+        k = self.kmer_size - 1
         self.paralogs.add(name)
+        #TODO - handle names longer than 1 character by truncating
+        paralogNodeCount = Counter()
 
-        for i in xrange(len(seqRecord)-k):
-            #left and right k-1mers
+        for i in xrange(len(seq)-k):
+            #left and right k-1mers 
             km1L, km1R = seq[i:i+k].upper(), seq[i+1:i+k+1].upper()
 
             if self.G.has_node(km1L) is not True:
-                self.G.add_node(km1L, pos=[i], source=[name], count=1)
+                self.G.add_node(km1L, label=["{}_{}".format(name, paralogNodeCount[name])], count=1)
+                paralogNodeCount[name] += 1
             else:
-                self.G.node[km1L]["pos"].append(i)
-                self.G.node[km1L]["source"].append(name)
+                self.G.node[km1L]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
                 self.G.node[km1L]["count"] += 1
+                paralogNodeCount[name] += 1
             
             if self.G.has_node(km1R) is not True:
-                self.G.add_node(km1R, pos=[], source=[], count=0)
+                self.G.add_node(km1R, label=[], count=0)
 
             self.G.add_edge(km1L, km1R)
             self.kmers.add(km1L)
-            self.reverseKmers.add(reverse_complement(km1L))
+            self.reverseKmers.add(reverseComplement(km1L))
 
         #need to count the last kmer also
-        self.G.node[km1R]["pos"].append(i+1)
-        self.G.node[km1R]["source"].append(name)
+        self.G.node[km1R]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
         self.G.node[km1R]["count"] += 1
         self.kmers.add(km1R)
+        self.reverseKmers.add(reverseComplement(km1R))
 
         self.has_sequences = True
 
+    def finishBuild(self):
+        for node in self.G.nodes():
+            self.G.node[node]["label"] = ", ".join(sorted(self.G.node[node]["label"]))
 
     def pruneGraph(self):
         """
@@ -121,7 +122,6 @@ class DeBruijnGraph(object):
                     self.G.remove_edge(n1, n2)
 
         self.is_pruned = True
-        logging.debug("Graph pruned.")
 
 
     def weaklyConnectedSubgraphs(self):
@@ -132,7 +132,7 @@ class DeBruijnGraph(object):
         for subgraph in nx.weakly_connected_component_subgraphs(self.G):
             yield (subgraph, nx.topological_sort(subgraph))
 
-    def flagNodes(self, kmer_iter):
+    def flagNodes(self, kmer_iter, cutoff=1):
         """
         Iterates over a kmer_iter and flags nodes as being bad.
         This is used to flag nodes whose kmer is represented elsewhere
@@ -141,7 +141,13 @@ class DeBruijnGraph(object):
         sequence strings from a Jellyfish count file.
         Note that the kmer counts should be k-1mers
 
+        Cutoff determines the minimum number of counts seen elsewhere
+        in the genome to count as a flagged node.
+
         """
-        for k1mer in kmer_iter:
-            if self.G.has_node(k1mer):
-                self.G.node[k1mer]['bad'] = True
+        for count, k1mer in kmer_iter:
+            if count >= cutoff:
+                if k1mer in self.kmers:
+                    self.G.node[k1mer]['bad'] = True
+                elif reverseComplement(k1mer) in self.reverseKmers:
+                    self.G.node[k1mer]['bad'] = True

@@ -35,18 +35,37 @@ class ModelWrapper(Target):
                 "haussler:" + self.key, os.path.join(self.getLocalTempDir(), "tmp"), fastqFile))
         return fastqFile
 
+    def combinedPlot(self, ilpDict, sunDict, maxPos, offset, normalizing):
+        arrays = {}
+        colors = ["#4D4D4D","#5DA5DA","#FAA43A","#60BD68","#F17CB0"]
+        xvals = np.array(range(offset, offset + maxPos + 1),dtype="int")
+        sortedParalogs = sorted(ilpDict.keys())
+        for para in sortedParalogs:
+            arrays[para] = np.array(ilpDict[para], dtype="int")
+        ax = plt.gca()
+        fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
+        plt.yticks((0, 1, 2, 3))
+        for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
+            p.axis([offset, offset + maxPos + 1, 0, 3])
+            p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
+            p.set_title("{} Copy Number".format(para))
+            sunPos, sunVals = zip(*sunDict[para])
+            plt.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), np.asarray(sunVals), lw=2)
+        fig.subplots_adjust(hspace=0.5)
+        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".sun.ilp.png"), format="png")
+        plt.close()     
+
     def run(self):
         fastqFile = self.downloadQuery()
         if os.path.getsize(fastqFile) < 513:
             raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
-        #if self.doFullSun is not False:
-        #    self.addChildTarget(FullSunModel(self.baseOutDir, self.fastqFile, self.uuid))
-        sun = OriginalSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
-        sunDict = sun.run()
+        sun = FilteredSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
+        sunDict, normalizing = sun.run()
         ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
                 self.graph, self.getLocalTempDir())
-        ilpDict = ilp.run()
-        #TODO: use the dicts to make a combined plot
+        ilpDict, maxPos, offset = ilp.run()
+        self.combinedPlot(ilpDict, sunDict, maxPos, offset)
 
 
 class SunModel(object):
@@ -132,7 +151,7 @@ class SunModel(object):
         self.makeBedgraphs(resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
-        return resultDict
+        return resultDict, self.normalizing
 
 
 class UnfilteredSuns(SunModel):
@@ -272,3 +291,4 @@ class IlpModel(object):
         P.solve()
         copyMap, maxPos = P.reportCopyMap()
         plotResult(copyMap, maxPos, G.offset)
+        return copyMap, maxPos, G.offset

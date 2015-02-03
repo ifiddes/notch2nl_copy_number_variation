@@ -17,6 +17,13 @@ from jobTree.src.bioio import system, logger, reverseComplement
 
 
 class ModelWrapper(Target):
+    """
+    This Target runs all of the models.
+    First, the fastq is extracted from the BAM slicer via curl and samtools.
+    Next, the SUN model is ran (see SunModel)
+    Then, the ILP model is ran (see IlpModel)
+    Finally, the results of both models is used to build a combined plot.
+    """
     def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph):
         Target.__init__(self)
         self.uuid = uuid
@@ -28,6 +35,9 @@ class ModelWrapper(Target):
         self.key = open(keyFile).readline().rstrip()
 
     def downloadQuery(self):
+        """
+        Downloads data from CGHub BAM Slicer
+        """
         fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
         logger.info("Downloading {} to {}".format(self.uuid, fastqFile))
         system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
@@ -69,7 +79,13 @@ class ModelWrapper(Target):
 
 
 class SunModel(object):
+    """
+    Runs the SUN model, where alelle fraction at unique sites is used to infer copy number
+    """
     def filterAndIndex(self, bamIn, bamOut):
+        """
+        Filter for unmapped reads and change position to be absolute to the chromosome
+        """
         header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
 
         outfile = pysam.Samfile(bamOut, "wb", header=header)
@@ -86,6 +102,9 @@ class SunModel(object):
         system("samtools index {}".format(bamOut))
 
     def findSiteCoverages(self, bamIn):
+        """
+        Runs mpileup on each SUN position and finds allele fractions
+        """
         bases = set(["A", "T", "G", "C", "a", "t", "g", "c"])
         resultDict = defaultdict(list)
         
@@ -111,7 +130,10 @@ class SunModel(object):
         return resultDict
 
     def findNormalizingFactor(self, r):
-        return 2 * np.mean(rejectOutliers(np.asarray(r))) / 0.8
+        """
+        The values for Notch2NL-A-D are normalized by Notch2. Notch2 does not have CNV.
+        """
+        return np.mean(rejectOutliers(1 - np.asarray(r))) / 0.8
 
     def plotHistograms(self, resultDict, path):
         f, plts = plt.subplots(5, sharex=True)
@@ -155,7 +177,7 @@ class SunModel(object):
         self.makeBedgraphs(self.resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
-        pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
+        #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
 
 class UnfilteredSunModel(SunModel):
     def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):

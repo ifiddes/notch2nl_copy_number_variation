@@ -27,15 +27,15 @@ def buildParser():
             help="pickled query file produced by cgquery_handler.py. Default is ./queries/queries.pickle")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
             help="base output directory that results will be written to. Default is ./output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=15.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=13.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=1.0,
+    parser.add_argument("--data_penalty", type=float, default=0.8,
             help="data penalty used for ILP model.")
     parser.add_argument("--key_file", type=str, action=FullPaths,
             default="/inside/home/cwilks/haussl_new.key",
             help="The key file to download protected data from cghub.")
     parser.add_argument("--graph", type=str, action=FullPaths,
-            default="data/graphs/Notch2NL.pickle")
+            default="./data/graphs/Notch2NL.pickle")
     return parser
 
 

@@ -91,7 +91,11 @@ class SunModel(object):
         
         for pos, (para, ref, alt) in self.wl.iteritems():
             posStr = "chr1:{0}-{0}".format(pos)
-            pileUpStr = pysam.Mpileup("-q", "10", "-r", posStr, bamIn)[0].split()
+            pileUp = pysam.mpileup("-q", "10", "-r", posStr, bamIn)
+            if len(pileUp) == 0:
+                continue
+                
+            pileUpStr = pileUp[0].split()
             if len(pileUpStr) != 6:
                 continue
 
@@ -143,6 +147,7 @@ class SunModel(object):
         #filter the SAM records and find the site coverage at each locus, creating VCFs
         remappedBamPath = os.path.join(self.localTempDir, 
                 "{}.{}.remapped.sorted.bam".format(self.uuid, self.header))
+        self.filterAndIndex(sortedBamPath, remappedBamPath)
         resultDict = self.findSiteCoverages(remappedBamPath)     
         self.normalizing = self.findNormalizingFactor(zip(*resultDict["N"])[1])
         #plot the results
@@ -154,7 +159,7 @@ class SunModel(object):
         return resultDict, self.normalizing
 
 
-class UnfilteredSuns(SunModel):
+class UnfilteredSunModel(SunModel):
     def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
         self.uuid = uuid
         self.fastqFile = fastqFile
@@ -170,10 +175,10 @@ class UnfilteredSuns(SunModel):
 
         self.header = "unfilteredSun"
         #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/index/hs_n2.masked.fa"
+        self.index = "./data/SUN_data/hs_n2.masked.fa"
 
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
-        with open("./data/unfiltered_whitelist.txt") as wl:
+        with open("./data/SUN_data/unfiltered_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
         #dict mapping genome positions to which paralog has a SUN at that position
         #[paralog, hg19_pos, ref, alt]
@@ -183,7 +188,7 @@ class UnfilteredSuns(SunModel):
         SunModel.run(self)
 
 
-class FilteredSuns(SunModel):
+class FilteredSunModel(SunModel):
     def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
         self.uuid = uuid
         self.fastqFile = fastqFile
@@ -199,10 +204,10 @@ class FilteredSuns(SunModel):
 
         self.header = "filteredSun"
         #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/index/hs_n2.masked.fa"
+        self.index = "./data/SUN_data/hs_n2.masked.fa"
 
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
-        with open("./data/whitelist.txt") as wl:
+        with open("./data/SUN_data/whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
         #dict mapping genome positions to which paralog has a SUN at that position
         #[paralog, hg19_pos, ref, alt]
@@ -267,7 +272,7 @@ class IlpModel(object):
         system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
         system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
         
-        G = pickle.load(self.graph)
+        G = pickle.load(open(self.graph, "rb"))
         with open(countFile) as f:
             #using string translate has been shown to be faster than using any other means
             #of removing characters from a string

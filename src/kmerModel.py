@@ -110,7 +110,7 @@ class KmerModel(SequenceGraphLpProblem):
                 sizeAdjust=0.1, singleVariableWeight=5, tightness=0.025):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
-        self.block_map = { x : [] for x in G.paralogs }
+        self.block_map = { x : [] for x in deBruijnGraph.paralogs }
 
         self.normalizing = normalizing
         self.breakpointPenalty = breakpointPenalty

@@ -61,11 +61,11 @@ class ModelWrapper(Target):
         if os.path.getsize(fastqFile) < 513:
             raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
         sun = FilteredSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
-        sunDict, normalizing = sun.run()
+        sun.run()
         ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
                 self.graph, self.getLocalTempDir())
-        ilpDict, maxPos, offset = ilp.run()
-        self.combinedPlot(ilpDict, sunDict, maxPos, offset)
+        ilp.run()
+        self.combinedPlot(ilp.resultDict, sun.resultDict, ilp.maxPos, ilp.offset, sun.normalizing)
 
 
 class SunModel(object):
@@ -94,7 +94,7 @@ class SunModel(object):
             pileUp = pysam.mpileup("-q", "10", "-r", posStr, bamIn)
             if len(pileUp) == 0:
                 continue
-                
+
             pileUpStr = pileUp[0].split()
             if len(pileUpStr) != 6:
                 continue
@@ -111,11 +111,10 @@ class SunModel(object):
         return resultDict
 
     def findNormalizingFactor(self, r):
-        return np.mean(rejectOutliers(np.asarray(r))) / 0.8
+        return 2 * np.mean(rejectOutliers(np.asarray(r))) / 0.8
 
     def plotHistograms(self, resultDict, path):
         f, plts = plt.subplots(5, sharex=True)
-        fig = plt.figure()
         for para, p in izip(sorted(resultDict.keys()), plts):
             v = np.asarray(zip(*resultDict[para])[1]) * self.normalizing
             p.set_ylabel("{}".format(para), size=9)
@@ -125,16 +124,17 @@ class SunModel(object):
         plt.savefig(path)
 
     def makeBedgraphs(self, resultDict):
+        if not os.path.exists(os.path.join(self.outDir, "bedgraphs")):
+            os.mkdir(os.path.join(self.outDir, "bedgraphs"))
         for para in resultDict:
-            path = os.path.join(self.outDir,"bedgraphs", "{}.{}.bedGraph".format(self.uuid, 
-                    self.header))
+            path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.bedGraph".format( 
+                    self.uuid[:8], para, self.header))
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
                     "yLineMark=0.2 viewLimits=0.0:0.4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
-                outf.write(bedHeader.format(name[:8] + "_" + para))
+                outf.write(bedHeader.format(self.uuid[:8] + "_" + para))
                 for pos, frac in resultDict[para]:
-                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac * self.normalizing])) \
-                            + "\n")
+                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac * self.normalizing])) + "\n")
 
     def run(self):
         #align the extracted reads to the index
@@ -143,21 +143,19 @@ class SunModel(object):
                 self.fastqFile, sortedBamPath))
         #samtools appends .bam to sorted bam files
         sortedBamPath += ".bam"
-        
         #filter the SAM records and find the site coverage at each locus, creating VCFs
         remappedBamPath = os.path.join(self.localTempDir, 
                 "{}.{}.remapped.sorted.bam".format(self.uuid, self.header))
         self.filterAndIndex(sortedBamPath, remappedBamPath)
-        resultDict = self.findSiteCoverages(remappedBamPath)     
-        self.normalizing = self.findNormalizingFactor(zip(*resultDict["N"])[1])
+        self.resultDict = self.findSiteCoverages(remappedBamPath)     
+        self.normalizing = self.findNormalizingFactor(zip(*self.resultDict["N"])[1])
         #plot the results
-        self.plotHistograms(resultDict, os.path.join(self.outDir, "{}.{}.png".format(self.uuid, 
+        self.plotHistograms(self.resultDict, os.path.join(self.outDir, "{}.{}.png".format(self.uuid, 
                 self.header)))
-        self.makeBedgraphs(resultDict)
+        self.makeBedgraphs(self.resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
-        return resultDict, self.normalizing
-
+        pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
 
 class UnfilteredSunModel(SunModel):
     def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
@@ -281,19 +279,19 @@ class IlpModel(object):
             for count, seq in izip(*[f]*2):
                 seq = seq.translate(None, rm)
                 rc = reverseComplement(seq)
-                if seq in G.kmers or seq in G.normalizing_kmers:
+                if seq in G.kmers or seq in G.normalizingKmers:
                     dataCounts[seq] = int(count.translate(None, rm))
-                elif rc in G.reverse_kmers or rc in G.reverse_normalizing_kmers:
+                elif rc in G.reverseKmers or rc in G.reverseNormalizingKmers:
                     dataCounts[rc] = int(count.translate(None, rm))
 
         #adjust ILP penalties for coverage in this sequencing run
-        normalizing = (( 1.0 * sum(dataCounts.get(x, 0) for x in G.normalizing_kmers) 
-                + sum(dataCounts.get(x, 0) for x in G.reverse_normalizing_kmers) ) 
-                / len(G.normalizing_kmers))
+        normalizing = (( 1.0 * sum(dataCounts.get(x, 0) for x in G.normalizingKmers) 
+                + sum(dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) 
+                / len(G.normalizingKmers))
 
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty)
         P.introduceData(dataCounts)
         P.solve()
-        copyMap, maxPos = P.reportCopyMap()
-        plotResult(copyMap, maxPos, G.offset)
-        return copyMap, maxPos, G.offset
+        self.copyMap, self.maxPos = P.reportCopyMap()
+        plotResult(self.copyMap, self.maxPos, G.offset)
+        self.offset = G.offset

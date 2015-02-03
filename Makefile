@@ -14,4 +14,4 @@ all :
 run : all
 	if [ -d ${jobTree} ]; then rm -rf ${jobTree}; fi
 	python src/bamSlicerPipeline.py --maxThreads=${maxThreads} --batchSystem=${batchSystem} \
-	--defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG &> ${log}
+	--defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}

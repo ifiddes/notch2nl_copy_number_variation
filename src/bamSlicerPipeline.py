@@ -39,8 +39,7 @@ def buildParser():
     return parser
 
 
-def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, fullSun, originalSun, Ilp, 
-    keyFile, graph):
+def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, keyFile, graph):
     logger.info("Starting to build analyses")
     for uuid, queryString in queries.iteritems():
         target.addChildTarget(ModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, 

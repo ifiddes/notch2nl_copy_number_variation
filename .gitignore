@@ -1,6 +1,5 @@
-data/chr1_fastas/*fasta
-data/chr1_fastas/*fa
 output/
+queries/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

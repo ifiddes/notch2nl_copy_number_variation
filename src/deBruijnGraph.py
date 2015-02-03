@@ -46,7 +46,7 @@ class DeBruijnGraph(object):
         return self.G.node
 
 
-    def addNormalizing(self, seqRecord):
+    def addNormalizing(self, name, seq):
         """
         Adds normalizing kmers to the graph. These kmers are from a region of notch2
         that is after the duplication breakpoint, and so has exactly two copies in everyone.
@@ -54,9 +54,9 @@ class DeBruijnGraph(object):
         """
         k = self.kmer_size - 1
 
-        for i in xrange(len(seqRecord)-k):
-            self.normalizingKmers.add(str(seqRecord.seq[i:i+k]).upper())
-            self.reverseNormalizingKmers.add(reverseComplement(str(seqRecord.seq[i:i+k]).upper()))
+        for i in xrange(len(seq)-k):
+            self.normalizingKmers.add(seq[i:i+k].upper())
+            self.reverseNormalizingKmers.add(reverseComplement(seq[i:i+k].upper()))
 
 
     def addSequences(self, name, seq):

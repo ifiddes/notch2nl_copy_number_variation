@@ -6,6 +6,7 @@ from collections import defaultdict, Counter
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
 from pylab import setp
 
@@ -133,7 +134,7 @@ class SunModel(object):
         """
         The values for Notch2NL-A-D are normalized by Notch2. Notch2 does not have CNV.
         """
-        return np.mean(rejectOutliers(1 - np.asarray(r))) / 0.8
+        return np.mean(rejectOutliers(np.asarray(r))) / 0.2
 
     def plotHistograms(self, resultDict, path):
         f, plts = plt.subplots(5, sharex=True)
@@ -314,6 +315,6 @@ class IlpModel(object):
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty)
         P.introduceData(dataCounts)
         P.solve()
-        self.copyMap, self.maxPos = P.reportCopyMap()
-        plotResult(self.copyMap, self.maxPos, G.offset)
+        self.resultDict, self.maxPos = P.reportCopyMap()
+        self.plotResult(self.copyMap, self.maxPos, G.offset)
         self.offset = G.offset

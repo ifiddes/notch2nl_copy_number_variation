@@ -1,5 +1,5 @@
 import pulp
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import izip
 from math import log, exp
 
@@ -137,7 +137,7 @@ class KmerModel(SequenceGraphLpProblem):
             self.blocks.append(b)
 
         for block in self.blocks:
-            for para, start, variable in block.variable_iter():
+            for para, start, variable in block.variableIter():
                 self.block_map[para].append([start, variable, block])
 
         #sort the block maps by start positions
@@ -154,7 +154,7 @@ class KmerModel(SequenceGraphLpProblem):
 
         #now we tie each variable within a block together to evenly distribute the mass
         for block in self.blocks:
-            variables = block.get_variables()
+            variables = block.getVariables()
             if len(variables) > 1:
                 for i in xrange(len(variables)):
                     var_a, var_b = variables[i-1], variables[i]
@@ -188,10 +188,10 @@ class KmerModel(SequenceGraphLpProblem):
 
                 #give larger weight to blocks with only one variable
                 #since this block contains unique sequence
-                if len(block.get_variables()) == 1:
-                    dataPenalty *= self.singleVariableWeight
+                if len(block.getVariables()) == 1:
+                    dp *= self.singleVariableWeight
 
-                self.constrain_approximately_equal(adjustedCount, sum(block.get_variables()), 
+                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), 
                         penalty=dp)
                 
     def reportCopyMap(self):

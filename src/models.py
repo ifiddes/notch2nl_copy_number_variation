@@ -55,16 +55,16 @@ class ModelWrapper(Target):
             arrays[para] = np.array(ilpDict[para], dtype="int")
         ax = plt.gca()
         fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
-        plt.yticks((0, 1, 2, 3))
+        plt.yticks((0, 1, 2, 3, 4))
         for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-            p.axis([offset, offset + maxPos + 1, 0, 3])
+            p.axis([offset, offset + maxPos + 1, 0, 4])
             p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
             p.set_title("{} Copy Number".format(para))
             sunPos, sunVals = zip(*sunDict[para])
             plt.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), np.asarray(sunVals), lw=2)
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".sun.ilp.png"), format="png")
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".sun.ilp.png"), format="png")
         plt.close()     
 
     def run(self):
@@ -73,6 +73,8 @@ class ModelWrapper(Target):
             raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
         sun = FilteredSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
         sun.run()
+        unfilteredSun = UnfilteredSunModel(self.baseOutDir, fastqFile, self.uuid, self.getLocalTempDir())
+        unfilteredSun.run()
         ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
                 self.graph, self.getLocalTempDir())
         ilp.run()
@@ -178,7 +180,8 @@ class SunModel(object):
         self.makeBedgraphs(self.resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
-        #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
+        pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
+
 
 class UnfilteredSunModel(SunModel):
     def __init__(self, baseOutDir, fastqFile, uuid, localTempDir):
@@ -272,19 +275,19 @@ class IlpModel(object):
         plt.legend(patches, sortedParalogs)
         plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
         plt.ylabel("Inferred Copy Number")
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".png"), format="png")
         plt.close()
         #now do individual plots on one png
         fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
-        plt.yticks((0, 1, 2, 3))
+        plt.yticks((0, 1, 2, 3, 4))
         for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-            p.axis([offset, offset + maxPos + 1, 0, 3])
+            p.axis([offset, offset + maxPos + 1, 0, 4])
             p.fill_between(xvals, copyMap[para], color=colors[i], alpha=0.7)
             p.set_title("{} Copy Number".format(para))
             p.scatter(xvals, copyMap[para], color=colors[i], alpha=0.7, s=0.3)
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid + ".separated.png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".separated.png"), format="png")
         plt.close()
 
     def run(self):
@@ -316,5 +319,5 @@ class IlpModel(object):
         P.introduceData(dataCounts)
         P.solve()
         self.resultDict, self.maxPos = P.reportCopyMap()
-        self.plotResult(self.copyMap, self.maxPos, G.offset)
+        self.plotResult(self.resultDict, self.maxPos, G.offset)
         self.offset = G.offset

@@ -82,10 +82,12 @@ class ModelWrapper(Target):
             p.axis([offset, offset + maxPos + 1, 0, 4])
             p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
             p.set_title("{}".format(para))
-            sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
-            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
-            sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
-            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
+            if len(unfilteredSunDict[paraMap[para]]) > 0:
+                sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
+                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
+            if len(filteredSunDict[paraMap[para]]) > 0:
+                sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
+                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
         plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".png"), format="png")

@@ -21,7 +21,7 @@ def parse_args():
             help="Genomes to send to cgquery.")
     parser.add_argument("--tissue_types", "-u", nargs="+", required=True, 
             help="Tissue types to look at.")
-    parser.add_argument("--size", nargs=2, default=["100000000000","*"], 
+    parser.add_argument("--size", nargs=2, default=["120000000000","*"], 
             help="two integer values representing # of bytes we want to look at. Second value can be *")
     parser.add_argument("--study", default="phs000178", 
             help="Study to look at. default=phs000178.")

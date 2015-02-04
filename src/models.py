@@ -145,7 +145,7 @@ class SunModel(object):
         return np.mean(rejectOutliers(np.asarray(r)))
 
     def plotHistograms(self, resultDict):
-        path = os.path.join(self.outDir, "{}.{}.png".format(self.uuid, self.__class__.__name__))
+        path = os.path.join(self.outDir, "{}.{}.png".format(self.uuid[:8], self.__class__.__name__))
         f, plts = plt.subplots(4, sharex=True)
         for para, p in izip(sorted(resultDict.keys()), plts):
             p.set_title("Notch2NL-{}".format(para))
@@ -249,7 +249,7 @@ class IlpModel(object):
         plt.legend(patches, sortedParalogs)
         plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
         plt.ylabel("Inferred Copy Number")
-        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + "combined.ILP.png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".combined.ILP.png"), format="png")
         plt.close()
         #now do individual plots on one png
         fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)

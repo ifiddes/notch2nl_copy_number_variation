@@ -11,8 +11,6 @@ import sys, os, argparse, urllib2, itertools
 import xml.etree.cElementTree as ET
 import cPickle as pickle
 
-from lib.general_lib import FullPaths
-
 #this hard-coded list stores which assemblies use '1' instead of 'chr1'
 #because people suck
 non_chr_names = ['GRCh37-lite','GRCh37']
@@ -32,7 +30,6 @@ def parse_args():
     parser.add_argument("--target_range", "-t", nargs="+", default=["chr1:120309986-145388461"], 
             help="target range(s) of assembly. default = chr1:120309986-145388461. include the word chr.")
     parser.add_argument("--out", "-o", default="queries/queries.pickle", type=argparse.FileType("wb"), 
-            action=FullPaths, 
             help="Location to write out the pickled queries to. Default = queries/queries.pickle")
     parser.add_argument("--debug_cutoff", type=int)
     return parser.parse_args()
@@ -94,9 +91,11 @@ def main():
 
     if args.debug_cutoff is None:
         pickle.dump(query_dict, args.out)
+        print ("Dumped {} records for analysis.".format(len(query_dict)))
     else:
         t = dict(query_dict.items()[:args.debug_cutoff])
         pickle.dump(t, args.out)
+        print ("Dumped {} records for analysis.".format(len(t)))
 
 
 if __name__ == '__main__':

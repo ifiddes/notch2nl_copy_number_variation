@@ -4,8 +4,7 @@
 BAM-slicer pipeline.
 
 Takes in a pickled dictionary of cgquery strings and then spins off one jobTree job per genome
-in that dictionary. Each genome will undergo SUN analysis on both hg19 and hg38 as well as
-Debruijn-Kmer copy number analysis.
+in that dictionary. Each genome will undergo SUN analysis well as Debruijn-Kmer copy number analysis.
 
 """
 
@@ -36,14 +35,16 @@ def buildParser():
             help="The key file to download protected data from cghub.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="./data/graphs/Notch2NL.pickle")
+    parser.add_argument("--save_intermediate", action="store_true",
+            help="Should we store the BAM intermediates for debugging?")
     return parser
 
 
-def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, keyFile, graph):
+def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
     logger.info("Starting to build analyses")
     for uuid, queryString in queries.iteritems():
         target.addChildTarget(ModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, 
-                keyFile, graph))
+                keyFile, graph, saveInter))
 
 
 def main():
@@ -54,7 +55,7 @@ def main():
     queries = pickle.load(args.queries)
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(queries, args.output, args.breakpoint_penalty,
-            args.data_penalty, args.key_file, args.graph))).startJobTree(args)
+            args.data_penalty, args.key_file, args.graph, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

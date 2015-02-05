@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 batchSystem="gridEngine"
 maxThreads="15"
 defaultMemory="8589934592"

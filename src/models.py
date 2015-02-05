@@ -26,24 +26,32 @@ class ModelWrapper(Target):
     Then, the ILP model is ran (see IlpModel)
     Finally, the results of both models is used to build a combined plot.
     """
-    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph):
+    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
         Target.__init__(self)
-        self.uuid = uuid
+        self.uuid = uuid[:8]
         self.queryString = queryString
         self.baseOutDir = baseOutDir
+        self.outDir = os.path.join(baseOutDir, self.uuid)
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.graph = graph
+        self.saveInter = saveInter
         self.key = open(keyFile).readline().rstrip()
         #index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.masked.fa"
+        if not os.path.exists(self.baseOutDir):
+            os.mkdir(self.baseOutDir)
+        if not os.path.exists(self.outDir):
+            os.mkdir(self.outDir)
 
     def downloadQuery(self):
         """
         Downloads data from CGHub BAM Slicer
         """
-        fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
-        logger.info("Downloading {} to {}".format(self.uuid, fastqFile))
+        if self.saveInter is not True:
+            fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
+        else:
+            fastqFile = os.path.join(self.baseOutDir, self.uuid, self.uuid + ".fastq")
         system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
                 """| samtools bam2fq /dev/stdin > {}""".format(self.queryString, 
                 "haussler:" + self.key, os.path.join(self.getLocalTempDir(), "tmp"), fastqFile))
@@ -55,7 +63,10 @@ class ModelWrapper(Target):
         #samtools appends .bam to sorted bam files
         sortedBamPath += ".bam"
         #filter the SAM records and find the site coverage at each locus, creating VCFs
-        remappedBamPath = os.path.join(self.getLocalTempDir(), "{}.remapped.sorted.bam".format(self.uuid))
+        if self.saveInter is not True:
+            remappedBamPath = os.path.join(self.getLocalTempDir(), "{}.remapped.sorted.bam".format(self.uuid))
+        else:
+            remappedBamPath = os.path.join(self.baseOutDir, self.uuid, "{}.remapped.sorted.bam".format(self.uuid))
         header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
         outfile = pysam.Samfile(remappedBamPath, "wb", header=header)
         bamfile = pysam.Samfile(sortedBamPath, "rb")  
@@ -90,19 +101,19 @@ class ModelWrapper(Target):
                 p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".combined.png"), format="png")
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid + ".combined.png"), format="png")
         plt.close()
 
     def run(self):
         bamPath, fastqFile = self.downloadQuery()
-        sun = FilteredSunModel(self.baseOutDir, self.uuid, bamPath)
+        sun = FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()
-        unfilteredSun = UnfilteredSunModel(self.baseOutDir, self.uuid, bamPath)
+        unfilteredSun = UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
+        ilp = IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
                 self.graph, self.getLocalTempDir())
         ilp.run()
-        self.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset)
+        self.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.saveInter)
 
 
 class SunModel(object):
@@ -147,7 +158,7 @@ class SunModel(object):
         return np.mean(rejectOutliers(np.asarray(r)))
 
     def plotHistograms(self, resultDict):
-        path = os.path.join(self.outDir, "{}.{}.png".format(self.uuid[:8], self.__class__.__name__))
+        path = os.path.join(self.outDir, "{}.{}.png".format(self.uuid, self.__class__.__name__))
         f, plts = plt.subplots(4, sharex=True)
         for para, p in izip(sorted(resultDict.keys()), plts):
             p.set_title("Notch2NL-{}".format(para))
@@ -163,31 +174,29 @@ class SunModel(object):
             os.mkdir(os.path.join(self.outDir, "bedgraphs"))
         for para in resultDict:
             path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.bedGraph".format( 
-                    self.uuid[:8], para, self.__class__.__name__))
+                    self.uuid, para, self.__class__.__name__))
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
                     "yLineMark=0.2 viewLimits=0.0:0.4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
-                outf.write(bedHeader.format(self.uuid[:8] + "_" + para))
+                outf.write(bedHeader.format(self.uuid + "_" + para))
                 for pos, frac in resultDict[para]:
                     outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
         #plot the results
-        self.plotHistograms(self.resultDict)
-        self.makeBedgraphs(self.resultDict)
+        #self.plotHistograms(self.resultDict)
+        #self.makeBedgraphs(self.resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
         #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
 
 
 class UnfilteredSunModel(SunModel):
-    def __init__(self, baseOutDir, uuid, bamPath):
+    def __init__(self, outDir, uuid, bamPath):
         self.uuid = uuid
         self.bamPath = bamPath
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
+        self.outDir = outDir
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
         with open("./data/SUN_data/unfiltered_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
@@ -200,12 +209,10 @@ class UnfilteredSunModel(SunModel):
 
 
 class FilteredSunModel(SunModel):
-    def __init__(self, baseOutDir, uuid, bamPath):
+    def __init__(self, outDir, uuid, bamPath):
         self.uuid = uuid
         self.bamPath = bamPath
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
+        self.outDir = outDir
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
         with open("./data/SUN_data/whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
@@ -218,18 +225,15 @@ class FilteredSunModel(SunModel):
 
 
 class IlpModel(object):
-    def __init__(self, baseOutDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir):
-        self.baseOutDir = baseOutDir
+    def __init__(self, outDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir, saveInter):
+        self.outDir = outDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.fastqFile = fastqFile
         self.graph = graph
         self.localTempDir = localTempDir
-
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
+        self.saveInter = saveInter
 
     def plotResult(self, copyMap, maxPos, offset):
         #first do overlaid figure
@@ -251,7 +255,7 @@ class IlpModel(object):
         plt.legend(patches, sortedParalogs)
         plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
         plt.ylabel("Inferred Copy Number")
-        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".overlaid.ILP.png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid + ".overlaid.ILP.png"), format="png")
         plt.close()
         #now do individual plots on one png
         fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
@@ -264,12 +268,15 @@ class IlpModel(object):
             p.scatter(xvals, copyMap[para], color=colors[i], alpha=0.7, s=0.3)
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
-        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".separated.ILP.png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid + ".separated.ILP.png"), format="png")
         plt.close()
 
-    def run(self):
+    def run(self):        
         jfFile = os.path.join(self.localTempDir, self.uuid + ".jf")
-        countFile = os.path.join(self.localTempDir, self.uuid + ".Counts.fa")
+        if self.saveInter is not True:
+            countFile = os.path.join(self.localTempDir, self.uuid + ".Counts.fa")
+        else:
+            countFile = os.path.join(self.outDir, self.uuid + ".Counts.fa")
         system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
         system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
         

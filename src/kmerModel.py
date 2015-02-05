@@ -98,7 +98,7 @@ class KmerModel(SequenceGraphLpProblem):
         strongly to the data.
     
     """
-    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1):
+    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=25, dataPenalty=0.6):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = { x : [] for x in deBruijnGraph.paralogs }
@@ -161,8 +161,14 @@ class KmerModel(SequenceGraphLpProblem):
 
                 adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
 
+                dp = self.dataPenalty * log(exp(1) + len(block) * 0.1)
+
+                if len(block.getVariables()) == 1:
+                    dp *= 3
+
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), 
-                        penalty=self.dataPenalty)
+                        penalty=dp)
+                self.constrain_approximately_equal(10.0, sum(block.getVariables()), penalty=0.05)
                 
     def reportCopyMap(self):
         """

@@ -55,7 +55,7 @@ class ModelWrapperLocalFiles(Target):
     def alignQuery(self):
         #align the extracted reads to the index
         sortedBamPath = os.path.join(self.getLocalTempDir(), "{}.sorted".format(self.uuid))
-        system("bwa mem -v 1 -t 20 {} {} | samtools view -F 4 -@ 10 -bS - | samtools sort -@ 15 - {}".format(self.index, self.fastqFile, sortedBamPath))
+        system("bwa mem -v 1 {} {} | samtools view -F 4  -bS - | samtools sort - {}".format(self.index, self.fastqFile, sortedBamPath))
         #samtools appends .bam to sorted bam files
         sortedBamPath += ".bam"
         #filter the SAM records and find the site coverage at each locus, creating VCFs
@@ -70,6 +70,8 @@ class ModelWrapperLocalFiles(Target):
             outfile.write(record)
         outfile.close()
         system("samtools index {}".format(remappedBamPath))
+        smallerFastqFile = os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".fastq")
+        system("samtools view {} | bamstools bamshuf -Ou /dev/stdin {} | samtools bam2fq /dev/stdin > {}".format(remappedBamPath, os.path.join(self.getLocalTempDir(), "tmp"), smallerFastqFile))
         return remappedBamPath, self.fastqFile
 
     def combinedPlot(self, ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset):

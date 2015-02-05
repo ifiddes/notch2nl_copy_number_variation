@@ -1,4 +1,4 @@
-import pulp
+import pulp, os
 """
 All code in this file written by Adam Novak
 """
@@ -167,7 +167,7 @@ class SequenceGraphLpProblem(object):
         # Set up the penalties described by the penalty tree
         self.penalties.set_objective(self.problem)
         # Solve the problem
-        status = self.problem.solve(pulp.COIN_CMD(path="/inside/home/ifiddes/bin/cbc")) 
+        status = self.problem.solve(pulp.COIN_CMD(path=os.path.join(os.path.expanduser("~"), "bin", "cbc"))) 
         if status != pulp.constants.LpStatusOptimal:
             self.is_solved = False
             raise Exception("Unable to solve problem optimally.")

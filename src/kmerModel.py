@@ -96,18 +96,9 @@ class KmerModel(SequenceGraphLpProblem):
         Larger values restricts breakpoints.
     dataPenalty: how much do we trust the data? Larger values locks the variables more
         strongly to the data.
-    sizeAdjust: adjusts dataPenalty so that more weight is given to larger blocks.
-        This reduces noise due to sequencing depth. This is plugged into a exponential
-        fit so that very large blocks are not linearly more weighted than medium blocks.
-    singleVariableWeight: adjusts dataPenalty so that more weight is given to blocks
-        that contain only one variable. This block contains SUN positions.
-    tightness: determines how closely we want to tie variables within a block
-        to each other. This prevents 4 and 0 being equally optimal as 2 and 2. Very small 
-        value.
     
     """
-    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, 
-                sizeAdjust=0.2, singleVariableWeight=5, tightness=0.001):
+    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = { x : [] for x in deBruijnGraph.paralogs }
@@ -115,9 +106,6 @@ class KmerModel(SequenceGraphLpProblem):
         self.normalizing = normalizing
         self.breakpointPenalty = breakpointPenalty
         self.dataPenalty = dataPenalty
-        self.sizeAdjust = sizeAdjust
-        self.singleVariableWeight = singleVariableWeight
-        self.tightness = tightness
 
         self.buildBlocks(deBruijnGraph)
 
@@ -152,15 +140,6 @@ class KmerModel(SequenceGraphLpProblem):
                 var_a, var_b = variables[i-1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
-        #now we tie each variable within a block together to evenly distribute the mass
-        for block in self.blocks:
-            variables = block.getVariables()
-            if len(variables) > 1:
-                for i in xrange(len(variables)):
-                    var_a, var_b = variables[i-1], variables[i]
-                    self.constrain_approximately_equal(var_a, var_b, penalty=self.tightness)
-
-
     def introduceData(self, kmerCounts, k1mer_size=49):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
@@ -175,7 +154,6 @@ class KmerModel(SequenceGraphLpProblem):
         are weighted more.
 
         """
-
         for block in self.blocks:
             if len(block) > 0:
                 count = sum( kmerCounts.get(x, 0) for x in block.getKmers() )
@@ -183,16 +161,8 @@ class KmerModel(SequenceGraphLpProblem):
 
                 adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
 
-                #weight larger blocks more (data less noisy)
-                dp = self.dataPenalty * log(exp(1) + len(block) * self.sizeAdjust)
-
-                #give larger weight to blocks with only one variable
-                #since this block contains unique sequence
-                if len(block.getVariables()) == 1:
-                    dp *= self.singleVariableWeight
-
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), 
-                        penalty=dp)
+                        penalty=self.dataPenalty)
                 
     def reportCopyMap(self):
         """

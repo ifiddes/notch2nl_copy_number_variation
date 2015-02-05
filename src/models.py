@@ -91,7 +91,7 @@ class ModelWrapper(Target):
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
         plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".combined.png"), format="png")
-        plt.close()     
+        plt.close()
 
     def run(self):
         bamPath, fastqFile = self.downloadQuery()

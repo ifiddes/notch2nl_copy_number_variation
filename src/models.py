@@ -50,7 +50,7 @@ class ModelWrapper(Target):
             raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
         #align the extracted reads to the index
         sortedBamPath = os.path.join(self.getLocalTempDir(), "{}.sorted".format(self.uuid))
-        system("bwa mem -v 1 {} {} | samtools view -bS - | samtools sort - {}".format(self.index, fastqFile, sortedBamPath))
+        system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(self.index, fastqFile, sortedBamPath))
         #samtools appends .bam to sorted bam files
         sortedBamPath += ".bam"
         #filter the SAM records and find the site coverage at each locus, creating VCFs
@@ -59,11 +59,10 @@ class ModelWrapper(Target):
         outfile = pysam.Samfile(remappedBamPath, "wb", header=header)
         bamfile = pysam.Samfile(sortedBamPath, "rb")  
         for record in bamfile:
-            if not record.is_unmapped:
-                chrom, span = bamfile.getrname(record.tid).split(":")
-                start, end = map(int, span.split("-"))
-                record.pos = record.pos + start - 1
-                outfile.write(record)
+            chrom, span = bamfile.getrname(record.tid).split(":")
+            start, end = map(int, span.split("-"))
+            record.pos = record.pos + start - 1
+            outfile.write(record)
         outfile.close()
         system("samtools index {}".format(remappedBamPath))
         return remappedBamPath, fastqFile 
@@ -90,7 +89,7 @@ class ModelWrapper(Target):
                 p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
         fig.subplots_adjust(hspace=0.5)
         plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".png"), format="png")
+        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".combined.png"), format="png")
         plt.close()     
 
     def run(self):
@@ -251,7 +250,7 @@ class IlpModel(object):
         plt.legend(patches, sortedParalogs)
         plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
         plt.ylabel("Inferred Copy Number")
-        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".combined.ILP.png"), format="png")
+        plt.savefig(os.path.join(self.outDir, self.uuid[:8] + ".overlaid.ILP.png"), format="png")
         plt.close()
         #now do individual plots on one png
         fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)

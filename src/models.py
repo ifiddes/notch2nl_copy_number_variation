@@ -1,4 +1,4 @@
-import sys, os, pysam, vcf, string
+import sys, os, pysam, vcf, string, gzip
 import cPickle as pickle
 from itertools import izip
 from collections import defaultdict, Counter
@@ -11,10 +11,11 @@ import numpy as np
 from pylab import setp
 
 from src.kmerModel import KmerModel
-from lib.general_lib import formatRatio, rejectOutliers
+from lib.general_lib import formatRatio, rejectOutliers, opener
 
 from jobTree.scriptTree.target import Target
 from jobTree.src.bioio import system, logger, reverseComplement
+
 
 
 class ModelWrapper(Target):
@@ -274,7 +275,7 @@ class IlpModel(object):
         system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
         
         G = pickle.load(open(self.graph, "rb"))
-        with open(countFile) as f:
+        with opener(countFile) as f:
             #using string translate has been shown to be faster than using any other means
             #of removing characters from a string
             rm = ">\n"

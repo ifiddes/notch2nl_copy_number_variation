@@ -10,26 +10,23 @@ import matplotlib.patches as mpatches
 import numpy as np
 from pylab import setp
 
-from lib.general_lib import FullPaths, DirType
+from src.kmerModel import KmerModel
+from src.models import UnfilteredSunModel, FilteredSunModel, IlpModel
+from lib.general_lib import formatRatio, rejectOutliers, FullPaths, DirType
 
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-from jobTree.src.bioio import logger, setLoggingFromOptions
-
-import src.models
+from jobTree.src.bioio import system, logger, reverseComplement, setLoggingFromOptions
 
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    infiles = parser.add_mutually_exclusive_group()
-    infiles.add_argument("--fastq", type=str, help="fastq file")
-    infiles.add_argument("--fastq_list", type=argparse.FileType("r"), help="list of fastq files")
-    parser.add_argument("--name", type=str, help="name")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
-            help="base output directory that results will be written to. Default is ./output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
+            help=("base output directory that results will be written to. Default is ./output/"
+            "For this model is where files will be hunted for."))
+    parser.add_argument("--breakpoint_penalty", type=float, default=23.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.70,
+    parser.add_argument("--data_penalty", type=float, default=0.68,
             help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="./data/graphs/Notch2NL.pickle")
@@ -38,28 +35,22 @@ def buildParser():
     return parser
 
 
-def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
-    for fastq in fastqList:
-        fastq = fastq.rstrip()
-        target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
-
-
-class ModelWrapperLocalFile(Target):
+class ModelWrapperDownloadedFiles(Target):
     """
-    Runs BAM slicer pipeline but without the BAM slicing. Takes local fastq file(s) and runs
-    it through all the analyses.
+    Runs the models on all fastq files found in the output folder. Will generate BAMs and counts as necessary.
     """
-    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph, fastqFile, saveInter=False):
+    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.baseOutDir = baseOutDir
+        self.outDir = os.path.join(self.baseOutDir, self.uuid)
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.graph = graph
-        self.fastqFile = fastqFile
-        self.saveInter = saveInter
         #index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.masked.fa"
+        self.fastqFile = os.path.join(self.outDir, self.uuid + ".fastq")
+        self.bamPath = os.path.join(self.outDir, self.uuid + ".remapped.sorted.bam")
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
         if not os.path.exists(self.outDir):
@@ -68,9 +59,12 @@ class ModelWrapperLocalFile(Target):
     def run(self):
         if self.saveInter is not True:
             bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".bam")
+            fastqPath = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
         else:
             bamPath = os.path.join(self.outDir, self.uuid + ".bam")
-        models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.queryString, self.uuid, self.index)
+            fastqPath = os.path.join(self.outDir, self.uuid + ".fastq")
+        if not os.path.exists(bamPath):
+            models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.queryString, self.uuid, self.index)
         sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()
         unfilteredSun = UnfilteredSunModel(self.outDir, self.uuid, bamPath)
@@ -80,20 +74,22 @@ class ModelWrapperLocalFile(Target):
         models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
 
 
+def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph):
+    for uuid in os.listdir(output):
+        target.addChildTarget(ModelWrapperLocalFiles(uuid, output, breakpoint_penalty, data_penalty, graph))
+
+
 def main():
     parser = buildParser()
     Stack.addJobTreeOptions(parser)
     args = parser.parse_args()
     setLoggingFromOptions(args)
 
-    if args.fastq is not None:
-        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq, args.save_intermediate)).startJobTree(args)
-    else:
-        i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list, args.save_intermediate))).startJobTree(args)
+    i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.output, args.breakpoint_penalty, args.data_penalty, args.graph))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")
 
 if __name__ == "__main__":
-    from src.fastqPipeline import *
+    from src.downloadedPipeline import *
     main()

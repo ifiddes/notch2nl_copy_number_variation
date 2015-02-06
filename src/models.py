@@ -70,24 +70,33 @@ class SunModel(object):
         f.subplots_adjust(hspace=0.4)
         plt.savefig(path)
 
-    def makeBedgraphs(self, resultDict):
+    def makeBedgraphs(self, resultDict, hg38=False):
         if not os.path.exists(os.path.join(self.outDir, "bedgraphs")):
             os.mkdir(os.path.join(self.outDir, "bedgraphs"))
         for para in resultDict:
-            path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.bedGraph".format( 
-                    self.uuid, para, self.__class__.__name__))
+            if hg38 is False:
+                path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.hg19.bedGraph".format( 
+                        self.uuid, para, self.__class__.__name__))
+            else:
+                path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.hg38.bedGraph".format( 
+                        self.uuid, para, self.__class__.__name__))
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
                     "yLineMark=0.2 viewLimits=0.0:0.4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
                 outf.write(bedHeader.format(self.uuid + "_" + para))
                 for pos, frac in resultDict[para]:
-                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
+                    if hg38 is False:
+                        outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
+                    else:
+                        hg38_pos = self.wl[pos][3]
+                        outf.write("\t".join(map(str, ["chr1", hg38_pos, hg38_pos + 1, frac])) + "\n")
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
         #plot the results
         #self.plotHistograms(self.resultDict)
         self.makeBedgraphs(self.resultDict)
+        self.makeBedgraphs(self.resultDict, hg38=True)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
         #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
@@ -99,11 +108,11 @@ class UnfilteredSunModel(SunModel):
         self.bamPath = bamPath
         self.outDir = outDir
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
-        with open("./data/SUN_data/unfiltered_whitelist.txt") as wl:
+        with open("./data/SUN_data/hg38_unfiltered_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
         #dict mapping genome positions to which paralog has a SUN at that position
-        #[paralog, hg19_pos, ref, alt]
-        self.wl = {int(x[1]) : [x[0], x[2], x[3]] for x in wl_list}
+        #[paralog, hg19_pos, ref, alt, hg38_pos]
+        self.wl = {int(x[1]) : [x[0], x[2], x[3], int(x[4])] for x in wl_list}
 
     def run(self):
         SunModel.run(self)
@@ -115,11 +124,11 @@ class FilteredSunModel(SunModel):
         self.bamPath = bamPath
         self.outDir = outDir
         #whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
-        with open("./data/SUN_data/whitelist.txt") as wl:
+        with open("./data/SUN_data/hg38_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
         #dict mapping genome positions to which paralog has a SUN at that position
-        #[paralog, hg19_pos, ref, alt]
-        self.wl = {int(x[1]) : [x[0], x[2], x[3]] for x in wl_list}
+        #[paralog, hg19_pos, ref, alt, hg38_pos]
+        self.wl = {int(x[1]) : [x[0], x[2], x[3], x[4]] for x in wl_list}
 
     def run(self):
         SunModel.run(self)

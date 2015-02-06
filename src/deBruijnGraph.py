@@ -23,21 +23,16 @@ class DeBruijnGraph(object):
     This by definition removes all cycles as well as all strong connected components.
 
     """
-    def __init__(self, kmer_size, offset):
-
-        self.offset = offset
+    def __init__(self, kmer_size):
         self.kmer_size = kmer_size
         self.G = nx.DiGraph()
         self.has_sequences = False
         self.is_pruned = False
-        self.paralogs = set()
+        self.paralogs = []
         self.kmers = set()
         self.reverseKmers = set()
         self.normalizingKmers = set()
         self.reverseNormalizingKmers = set()
-
-    def paralogs(self):
-        return list(self.paralogs)
 
     def nodes(self):
         return self.G.nodes()
@@ -55,24 +50,29 @@ class DeBruijnGraph(object):
         k = self.kmer_size - 1
 
         for i in xrange(len(seq)-k):
-            self.normalizingKmers.add(seq[i:i+k].upper())
-            self.reverseNormalizingKmers.add(reverseComplement(seq[i:i+k].upper()))
+            s = seq[i:i+k].upper()
+            if "N" in s:
+                continue
+            self.normalizingKmers.add(s)
+            self.reverseNormalizingKmers.add(reverseComplement(s))
 
 
-    def addSequences(self, name, seq):
+    def addSequences(self, name, offset, seq):
         """
 
-        Adds k1mers to the graph.Edges are built as the k1mers are loaded.
+        Adds k1mers to the graph. Edges are built as the k1mers are loaded.
 
         """
         k = self.kmer_size - 1
-        self.paralogs.add(name)
+        self.paralogs.append([name, offset])
         #TODO - handle names longer than 1 character by truncating
         paralogNodeCount = Counter()
 
         for i in xrange(len(seq)-k):
             #left and right k-1mers 
             km1L, km1R = seq[i:i+k].upper(), seq[i+1:i+k+1].upper()
+            if "N" in km1L or "N" in km1R:
+                continue
 
             if self.G.has_node(km1L) is not True:
                 self.G.add_node(km1L, label=["{}_{}".format(name, paralogNodeCount[name])], count=1)
@@ -100,6 +100,7 @@ class DeBruijnGraph(object):
     def finishBuild(self):
         for node in self.G.nodes():
             self.G.node[node]["label"] = ", ".join(sorted(self.G.node[node]["label"]))
+        self.paralogs = sorted(self.paralogs, key = lambda x: x[0])
 
     def pruneGraph(self):
         """

@@ -14,7 +14,7 @@ def buildParser():
     parser = argparse.ArgumentParser()
     infiles = parser.add_mutually_exclusive_group()
     infiles.add_argument("--fastq", type=str, help="fastq file")
-    infiles.add_argument("--fastq_list", type=argparse.FileType("r"), help="list of fastq files")
+    infiles.add_argument("--fastq_list", type=str, help="list of fastq files")
     parser.add_argument("--name", type=str, help="name")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
             help="base output directory that results will be written to. Default is ./output/")
@@ -30,7 +30,7 @@ def buildParser():
 
 
 def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
-    for fastq in fastqList:
+    for fastq in open(fastqList):
         fastq = fastq.rstrip()
         target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
 

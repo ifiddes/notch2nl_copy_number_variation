@@ -15,38 +15,30 @@ def buildParser():
     parser.add_argument("--fastq_list", type=str, help="list of fastq files")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./amplicon_output/",
             help="base output directory that results will be written to. Default is ./amplicon_output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
-            help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.70,
-            help="data penalty used for ILP model.")
-    parser.add_argument("--graph", type=str, action=FullPaths,
-            default="./data/graphs/Notch2NL.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
             help="Should we store the intermediates for debugging?")
     return parser
 
 
-def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
+def buildAnalyses(target, output, fastqList, saveInter):
     for fastq in open(fastqList):
         fastq = fastq.rstrip()
-        name = fastq.split("_")[0]
-        target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
+        name = os.path.basename(fastq).split("_")[0]
+        target.addChildTarget(AmpliconModelWrapper(name, output, fastq, saveInter))
 
 
-class ModelWrapperLocalFile(Target):
+class AmpliconModelWrapper(Target):
     """
     Runs BAM slicer pipeline but without the BAM slicing. Takes local fastq file(s) and runs
     it through all the analyses.
     """
-    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph, fastqPath, saveInter):
+    def __init__(self, uuid, baseOutDir, fastqPath, saveInter):
         Target.__init__(self)
-        self.uuid = uuid[:8]
+        self.uuid = uuid
         self.baseOutDir = baseOutDir
-        self.bpPenalty = bpPenalty
-        self.dataPenalty = dataPenalty
-        self.graph = graph
         self.fastqPath = fastqPath
         self.saveInter = saveInter
+        self.outDir = os.path.join(self.baseOutDir, self.uuid)
         #index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.masked.fa"
         if not os.path.exists(self.baseOutDir):
@@ -71,11 +63,11 @@ def main():
     args = parser.parse_args()
     setLoggingFromOptions(args)
 
-    i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list, args.save_intermediate))).startJobTree(args)
+    i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.output, args.fastq_list, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")
 
 if __name__ == "__main__":
-    from src.fastqPipeline import *
+    from src.ampliconPipeline import *
     main()

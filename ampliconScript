@@ -2,7 +2,7 @@
 batchSystem="parasol"
 maxThreads="15"
 defaultMemory="8589934592"
-jobTree=".fastqJobTree/"
+jobTree=".ampliconJobTree/"
 log="ampliconLog.txt"
 maxCpus="250"
 
@@ -20,5 +20,5 @@ if [ -z $1 ]; then
     exit 1
 fi
 
-python src/fastqPipeline.py --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/ampliconPipeline.py --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
 

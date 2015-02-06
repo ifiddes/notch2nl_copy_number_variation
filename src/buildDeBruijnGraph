@@ -25,7 +25,7 @@ def parse_args(args):
     parser.add_argument("--genome_counts", "-g", type=argparse.FileType("r"),
         help="Jellyfish kmer count fasta over genome sequences NOT containing region of interest."
         "Counts should be of k-1mers (49mer).")
-    parser.add_argument("--offset", "-u", type=int,
+    parser.add_argument("--offset", "-u", type=int, required=True,
         help="Offset from first base of alignment to genome.")
     return parser.parse_args()
 

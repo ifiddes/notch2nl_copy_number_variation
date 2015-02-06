@@ -17,105 +17,6 @@ from jobTree.scriptTree.target import Target
 from jobTree.src.bioio import system, logger, reverseComplement
 
 
-
-class ModelWrapper(Target):
-    """
-    This Target runs all of the models.
-    First, the fastq is extracted from the BAM slicer via curl and samtools.
-    Next, the SUN model is ran (see SunModel)
-    Then, the ILP model is ran (see IlpModel)
-    Finally, the results of both models is used to build a combined plot.
-    """
-    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
-        Target.__init__(self)
-        self.uuid = uuid[:8]
-        self.queryString = queryString
-        self.baseOutDir = baseOutDir
-        self.outDir = os.path.join(baseOutDir, self.uuid)
-        self.bpPenalty = bpPenalty
-        self.dataPenalty = dataPenalty
-        self.graph = graph
-        self.saveInter = saveInter
-        self.key = open(keyFile).readline().rstrip()
-        #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/SUN_data/hs_n2.masked.fa"
-        if not os.path.exists(self.baseOutDir):
-            os.mkdir(self.baseOutDir)
-        if not os.path.exists(self.outDir):
-            os.mkdir(self.outDir)
-
-    def downloadQuery(self):
-        """
-        Downloads data from CGHub BAM Slicer
-        """
-        if self.saveInter is not True:
-            fastqFile = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
-        else:
-            fastqFile = os.path.join(self.baseOutDir, self.uuid, self.uuid + ".fastq")
-        system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
-                """| samtools bam2fq /dev/stdin > {}""".format(self.queryString, 
-                "haussler:" + self.key, os.path.join(self.getLocalTempDir(), "tmp"), fastqFile))
-        if os.path.getsize(fastqFile) < 513:
-            raise RuntimeError("curl did not download a BAM for {}. exiting.".format(self.uuid))
-        #align the extracted reads to the index
-        sortedBamPath = os.path.join(self.getLocalTempDir(), "{}.sorted".format(self.uuid))
-        system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(self.index, fastqFile, sortedBamPath))
-        #samtools appends .bam to sorted bam files
-        sortedBamPath += ".bam"
-        #filter the SAM records and find the site coverage at each locus, creating VCFs
-        if self.saveInter is not True:
-            remappedBamPath = os.path.join(self.getLocalTempDir(), "{}.remapped.sorted.bam".format(self.uuid))
-        else:
-            remappedBamPath = os.path.join(self.baseOutDir, self.uuid, "{}.remapped.sorted.bam".format(self.uuid))
-        header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
-        outfile = pysam.Samfile(remappedBamPath, "wb", header=header)
-        bamfile = pysam.Samfile(sortedBamPath, "rb")  
-        for record in bamfile:
-            chrom, span = bamfile.getrname(record.tid).split(":")
-            start, end = map(int, span.split("-"))
-            record.pos = record.pos + start - 1
-            outfile.write(record)
-        outfile.close()
-        system("samtools index {}".format(remappedBamPath))
-        return remappedBamPath, fastqFile 
-
-    def combinedPlot(self, ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset):
-        colors = ["#4D4D4D", "#5DA5DA", "#FAA43A", "#60BD68"]
-        #used because the ILP model uses single letter labels
-        paraMap = {"Notch2NL-A":"A", "Notch2NL-B":"B", "Notch2NL-C":"C", "Notch2NL-D":"D"}
-        xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
-        sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D"]
-        ax = plt.gca()
-        fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
-        plt.yticks((0, 1, 2, 3, 4))
-        plt.suptitle("kmer-DeBruijn ILP and SUN results")
-        for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-            p.axis([offset, offset + maxPos + 1, 0, 4])
-            p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
-            p.set_title("{}".format(para))
-            if len(unfilteredSunDict[paraMap[para]]) > 0:
-                sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
-                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
-            if len(filteredSunDict[paraMap[para]]) > 0:
-                sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
-                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
-        fig.subplots_adjust(hspace=0.5)
-        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid + ".combined.png"), format="png")
-        plt.close()
-
-    def run(self):
-        bamPath, fastqFile = self.downloadQuery()
-        sun = FilteredSunModel(self.outDir, self.uuid, bamPath)
-        sun.run()
-        unfilteredSun = UnfilteredSunModel(self.outDir, self.uuid, bamPath)
-        unfilteredSun.run()
-        ilp = IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, 
-                self.graph, self.getLocalTempDir())
-        ilp.run()
-        self.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.saveInter)
-
-
 class SunModel(object):
     """
     Runs the SUN model, where alelle fraction at unique sites is used to infer copy number
@@ -225,7 +126,7 @@ class FilteredSunModel(SunModel):
 
 
 class IlpModel(object):
-    def __init__(self, outDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir, saveInter):
+    def __init__(self, outDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir, saveCounts=False):
         self.outDir = outDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
@@ -233,7 +134,7 @@ class IlpModel(object):
         self.fastqFile = fastqFile
         self.graph = graph
         self.localTempDir = localTempDir
-        self.saveInter = saveInter
+        self.saveCounts = saveCounts
 
     def plotResult(self, copyMap, maxPos, offset):
         #first do overlaid figure
@@ -272,14 +173,12 @@ class IlpModel(object):
         plt.close()
 
     def run(self):        
-        jfFile = os.path.join(self.localTempDir, self.uuid + ".jf")
         if self.saveInter is not True:
             countFile = os.path.join(self.localTempDir, self.uuid + ".Counts.fa")
         else:
             countFile = os.path.join(self.outDir, self.uuid + ".Counts.fa")
-        system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
-        system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
-        
+        if not os.path.exists(countFile):
+            runJellyfish(self.localTempDir, countFile, self.uuid, self.saveInter)
         G = pickle.load(open(self.graph, "rb"))
         with opener(countFile) as f:
             #using string translate has been shown to be faster than using any other means
@@ -293,15 +192,80 @@ class IlpModel(object):
                     dataCounts[seq] = int(count.translate(None, rm))
                 elif rc in G.reverseKmers or rc in G.reverseNormalizingKmers:
                     dataCounts[rc] = int(count.translate(None, rm))
-
         #adjust ILP penalties for coverage in this sequencing run
         normalizing = (( 1.0 * sum(dataCounts.get(x, 0) for x in G.normalizingKmers) 
                 + sum(dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) 
                 / len(G.normalizingKmers))
-
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty)
         P.introduceData(dataCounts)
         P.solve()
         self.resultDict, self.maxPos = P.reportCopyMap()
         self.plotResult(self.resultDict, self.maxPos, G.offset)
         self.offset = G.offset
+
+
+def runJellyfish(localTempDir, countFile, uuid, saveInter=False):
+    jfFile = os.path.join(localTempDir, uuid + ".jf")
+    system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
+    system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
+
+
+def downloadQuery(fastqPath, tempDir, key, queryString, uuid):
+    """
+    Downloads data from CGHub BAM Slicer
+    """
+    system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
+            """| samtools bam2fq /dev/stdin > {}""".format(queryString, 
+            "haussler:" + key, os.path.join(tempDir, "tmp"), fastqFile))
+    if os.path.getsize(fastqFile) < 513:
+        raise RuntimeError("curl did not download a BAM for {}. exiting.".format(uuid))
+
+
+def alignQuery(fastqPath, remappedBamPath, tempDir, queryString, uuid, index):
+    """
+    Aligns to the notch locus
+    """
+    #align the extracted reads to the index
+    sortedBamPath = os.path.join(tempDir, "{}.sorted".format(uuid))
+    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, fastqFile, sortedBamPath))
+    #samtools appends .bam to sorted bam files
+    sortedBamPath += ".bam"
+    header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
+    outfile = pysam.Samfile(remappedBamPath, "wb", header=header)
+    bamfile = pysam.Samfile(sortedBamPath, "rb")  
+    for record in bamfile:
+        chrom, span = bamfile.getrname(record.tid).split(":")
+        start, end = map(int, span.split("-"))
+        record.pos = record.pos + start - 1
+        outfile.write(record)
+    outfile.close()
+    system("samtools index {}".format(remappedBamPath))
+
+
+def combinedPlot(ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset, uuid, outDir):
+    """
+    Generates a final combined plot overlaying both ILP and SUN results.
+    """
+    colors = ["#4D4D4D", "#5DA5DA", "#FAA43A", "#60BD68"]
+    #used because the ILP model uses single letter labels
+    paraMap = {"Notch2NL-A":"A", "Notch2NL-B":"B", "Notch2NL-C":"C", "Notch2NL-D":"D"}
+    xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
+    sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D"]
+    ax = plt.gca()
+    fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
+    plt.yticks((0, 1, 2, 3, 4))
+    plt.suptitle("kmer-DeBruijn ILP and SUN results")
+    for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
+        p.axis([offset, offset + maxPos + 1, 0, 4])
+        p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
+        p.set_title("{}".format(para))
+        if len(unfilteredSunDict[paraMap[para]]) > 0:
+            sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
+            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
+        if len(filteredSunDict[paraMap[para]]) > 0:
+            sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
+            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
+    fig.subplots_adjust(hspace=0.5)
+    plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
+    plt.savefig(os.path.join(self.outDir, uuid + ".combined.png"), format="png")
+    plt.close()

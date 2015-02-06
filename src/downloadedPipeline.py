@@ -11,7 +11,7 @@ import numpy as np
 from pylab import setp
 
 from src.kmerModel import KmerModel
-from src.models import UnfilteredSunModel, FilteredSunModel
+from src.models import UnfilteredSunModel, FilteredSunModel, IlpModel
 from lib.general_lib import formatRatio, rejectOutliers, FullPaths, DirType
 
 from jobTree.scriptTree.target import Target
@@ -22,20 +22,22 @@ from jobTree.src.bioio import system, logger, reverseComplement, setLoggingFromO
 def buildParser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
-            help="base output directory that results will be written to. Default is ./output/")
+            help=("base output directory that results will be written to. Default is ./output/"
+            "For this model is where files will be hunted for."))
     parser.add_argument("--breakpoint_penalty", type=float, default=23.0,
             help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=0.68,
             help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="./data/graphs/Notch2NL.pickle")
+    parser.add_argument("--save_intermediate", action="store_true",
+            help="Should we store the intermediates for debugging?")
     return parser
 
 
-class ModelWrapperLocalFiles(Target):
+class ModelWrapperDownloadedFiles(Target):
     """
-    Runs BAM slicer pipeline but without the BAM slicing. Takes local fastq file(s) and runs
-    it through all the analyses.
+    Runs the models on all fastq files found in the output folder. Will generate BAMs and counts as necessary.
     """
     def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph):
         Target.__init__(self)
@@ -54,44 +56,28 @@ class ModelWrapperLocalFiles(Target):
         if not os.path.exists(self.outDir):
             os.mkdir(self.outDir)
 
-    def combinedPlot(self, ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset):
-        colors = ["#4D4D4D", "#5DA5DA", "#FAA43A", "#60BD68"]
-        #used because the ILP model uses single letter labels
-        paraMap = {"Notch2NL-A":"A", "Notch2NL-B":"B", "Notch2NL-C":"C", "Notch2NL-D":"D"}
-        xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
-        sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D"]
-        ax = plt.gca()
-        fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
-        plt.yticks((0, 1, 2, 3, 4))
-        plt.suptitle("kmer-DeBruijn ILP and SUN results")
-        for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-            p.axis([offset, offset + maxPos + 1, 0, 4])
-            p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
-            p.set_title("{}".format(para))
-            if len(unfilteredSunDict[paraMap[para]]) > 0:
-                sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
-                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
-            if len(filteredSunDict[paraMap[para]]) > 0:
-                sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
-                p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
-        fig.subplots_adjust(hspace=0.5)
-        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-        plt.savefig(os.path.join(self.baseOutDir, self.uuid, self.uuid[:8] + ".png"), format="png")
-        plt.close()   
-
     def run(self):
-        sun = FilteredSunModel(self.baseOutDir, self.uuid, self.bamPath)
+        if self.saveInter is not True:
+            bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".bam")
+            fastqPath = os.path.join(self.getLocalTempDir(), self.uuid + ".fastq")
+        else:
+            bamPath = os.path.join(self.outDir, self.uuid + ".bam")
+            fastqPath = os.path.join(self.outDir, self.uuid + ".fastq")
+        if not os.path.exists(bamPath):
+            models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.queryString, self.uuid, self.index)
+        sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()
-        unfilteredSun = UnfilteredSunModel(self.baseOutDir, self.uuid, self.bamPath)
+        unfilteredSun = UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = IlpModel(self.baseOutDir, self.bpPenalty, self.dataPenalty, self.fastqFile, self.uuid, 
-                self.graph, self.getLocalTempDir())
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
         ilp.run()
-        self.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset)
+        models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
 
-def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, fastqList):
+
+def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph):
     for uuid in os.listdir(output):
         target.addChildTarget(ModelWrapperLocalFiles(uuid, output, breakpoint_penalty, data_penalty, graph))
+
 
 def main():
     parser = buildParser()

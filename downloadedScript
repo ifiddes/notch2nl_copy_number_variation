@@ -2,8 +2,8 @@
 batchSystem="gridEngine"
 maxThreads="15"
 defaultMemory="8589934592"
-jobTree=".jobTree_downloaded/"
-log="log_downloaded.txt"
+jobTree=".downloadedJobTree/"
+log="downloadedLog.txt"
 maxCpus="250"
 
 

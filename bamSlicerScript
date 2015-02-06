@@ -2,8 +2,8 @@
 batchSystem="gridEngine"
 maxThreads="15"
 defaultMemory="8589934592"
-jobTree=".jobTree/"
-log="log.txt"
+jobTree=".slicerJobTree/"
+log="slicerLog.txt"
 maxCpus="250"
 queries="queries/queries.pickle"
 

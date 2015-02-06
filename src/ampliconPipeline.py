@@ -12,12 +12,9 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    infiles = parser.add_mutually_exclusive_group()
-    infiles.add_argument("--fastq", type=str, help="fastq file")
-    infiles.add_argument("--fastq_list", type=argparse.FileType("r"), help="list of fastq files")
-    parser.add_argument("--name", type=str, help="name")
-    parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
-            help="base output directory that results will be written to. Default is ./output/")
+    parser.add_argument("--fastq_list", type=argparse.FileType("r"), help="list of fastq files")
+    parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./amplicon_output/",
+            help="base output directory that results will be written to. Default is ./amplicon_output/")
     parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
             help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=0.70,
@@ -29,9 +26,10 @@ def buildParser():
     return parser
 
 
-def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
+def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
     for fastq in fastqList:
         fastq = fastq.rstrip()
+        name = fastq.split("_")[0]
         target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
 
 
@@ -66,10 +64,6 @@ class ModelWrapperLocalFile(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.fastqPath, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
-        ilp.run()
-        models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
-
 
 def main():
     parser = buildParser()
@@ -77,10 +71,7 @@ def main():
     args = parser.parse_args()
     setLoggingFromOptions(args)
 
-    if args.fastq is not None:
-        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq, args.save_intermediate)).startJobTree(args)
-    else:
-        i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list, args.save_intermediate))).startJobTree(args)
+    i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

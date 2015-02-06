@@ -15,5 +15,5 @@ if [ -d ${jobTree} ]; then
     rm -rf ${jobTree}
 fi
 
-python src/downloadedPipeline.py --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/downloadedPipeline.py --save_intermediate --graph data/graphs/large_graph_no_flag.pickle --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
 

@@ -87,7 +87,7 @@ class SunModel(object):
         self.resultDict = self.findSiteCoverages(self.bamPath)
         #plot the results
         #self.plotHistograms(self.resultDict)
-        #self.makeBedgraphs(self.resultDict)
+        self.makeBedgraphs(self.resultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
         #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
@@ -140,7 +140,7 @@ class IlpModel(object):
         #first do overlaid figure
         arrays = {}
         colors = ["#4D4D4D","#5DA5DA","#FAA43A","#60BD68","#F17CB0"]
-        xvals = np.array(range(offset, offset + maxPos + 1),dtype="int")
+        xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
         sortedParalogs = sorted(copyMap.keys())
         for para in sortedParalogs:
             arrays[para] = np.array(copyMap[para], dtype="int")
@@ -172,13 +172,13 @@ class IlpModel(object):
         plt.savefig(os.path.join(self.outDir, self.uuid + ".separated.ILP.png"), format="png")
         plt.close()
 
-    def run(self):        
-        if self.saveInter is not True:
+    def run(self):    
+        if self.saveCounts is not True:
             countFile = os.path.join(self.localTempDir, self.uuid + ".Counts.fa")
         else:
             countFile = os.path.join(self.outDir, self.uuid + ".Counts.fa")
         if not os.path.exists(countFile):
-            runJellyfish(self.localTempDir, countFile, self.uuid, self.saveInter)
+            runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid)
         G = pickle.load(open(self.graph, "rb"))
         with opener(countFile) as f:
             #using string translate has been shown to be faster than using any other means
@@ -204,9 +204,9 @@ class IlpModel(object):
         self.offset = G.offset
 
 
-def runJellyfish(localTempDir, countFile, uuid, saveInter=False):
+def runJellyfish(localTempDir, countFile, fastqFile, uuid):
     jfFile = os.path.join(localTempDir, uuid + ".jf")
-    system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, self.fastqFile))
+    system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, fastqFile))
     system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
 
 
@@ -221,13 +221,13 @@ def downloadQuery(fastqPath, tempDir, key, queryString, uuid):
         raise RuntimeError("curl did not download a BAM for {}. exiting.".format(uuid))
 
 
-def alignQuery(fastqPath, remappedBamPath, tempDir, queryString, uuid, index):
+def alignQuery(fastqPath, remappedBamPath, tempDir, uuid, index):
     """
     Aligns to the notch locus
     """
     #align the extracted reads to the index
     sortedBamPath = os.path.join(tempDir, "{}.sorted".format(uuid))
-    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, fastqFile, sortedBamPath))
+    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, fastqPath, sortedBamPath))
     #samtools appends .bam to sorted bam files
     sortedBamPath += ".bam"
     header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
@@ -267,5 +267,5 @@ def combinedPlot(ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset, uu
             p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
     fig.subplots_adjust(hspace=0.5)
     plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
-    plt.savefig(os.path.join(self.outDir, uuid + ".combined.png"), format="png")
+    plt.savefig(os.path.join(outDir, uuid + ".combined.png"), format="png")
     plt.close()

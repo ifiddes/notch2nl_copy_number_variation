@@ -8,15 +8,16 @@ in that dictionary. Each genome will undergo SUN analysis well as Debruijn-Kmer 
 
 """
 
-import os, argparse
+import sys, os, argparse
 import cPickle as pickle
+
+from lib.general_lib import FullPaths, DirType
 
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-from jobTree.src.bioio import setLoggingFromOptions, logger
+from jobTree.src.bioio import logger, setLoggingFromOptions
 
-from lib.general_lib import FullPaths, DirType
-import src.models
+import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
@@ -54,7 +55,7 @@ class SlicerModelWrapper(Target):
     Then, the ILP model is ran (see IlpModel)
     Finally, the results of both models is used to build a combined plot.
     """
-    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter=False):
+    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.queryString = queryString
@@ -81,10 +82,10 @@ class SlicerModelWrapper(Target):
             bamPath = os.path.join(self.outDir, self.uuid + ".bam")
             fastqPath = os.path.join(self.outDir, self.uuid + ".fastq")
         models.downloadQuery(fastqPath, self.getLocalTempDir(), self.key, self.queryString, self.uuid)
-        models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.queryString, self.uuid, self.index)
+        models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
         sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()
-        unfilteredSun = UnfilteredSunModel(self.outDir, self.uuid, bamPath)
+        unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
         ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
         ilp.run()

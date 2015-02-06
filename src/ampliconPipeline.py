@@ -12,7 +12,7 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--fastq_list", type=argparse.FileType("r"), help="list of fastq files")
+    parser.add_argument("--fastq_list", type=str, help="list of fastq files")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./amplicon_output/",
             help="base output directory that results will be written to. Default is ./amplicon_output/")
     parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
@@ -27,7 +27,7 @@ def buildParser():
 
 
 def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
-    for fastq in fastqList:
+    for fastq in open(fastqList):
         fastq = fastq.rstrip()
         name = fastq.split("_")[0]
         target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))

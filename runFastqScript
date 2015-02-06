@@ -17,10 +17,10 @@ fi
 
 if [ -z $1 ]; then
     echo "set either --fastq or --fastq_list."
-    exit(1)
+    exit 1
 elif [ -z $2 ]; then
     echo "Pick a fastq file or a fastq list"
-    exit(1)
+    exit 1
 fi
 
 if [ $1 == "--fastq" ]; then

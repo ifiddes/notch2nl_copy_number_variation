@@ -1,9 +1,9 @@
 #!/bin/bash
-batchSystem="gridEngine"
+batchSystem="parasol"
 maxThreads="15"
 defaultMemory="8589934592"
 jobTree=".fastqJobTree/"
-log="fastqLog.txt"
+log="ampliconLog.txt"
 maxCpus="250"
 
 
@@ -17,8 +17,8 @@ fi
 
 if [ -z $1 ]; then
     echo "provide a file listing fastq files"
-    exit(1)
+    exit 1
 fi
 
-python src/fastqPipeline.py --fastq_list $2 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/fastqPipeline.py --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
 

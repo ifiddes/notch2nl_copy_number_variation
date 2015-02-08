@@ -68,7 +68,7 @@ class ModelWrapperLocalFile(Target):
         unfilteredSun.run()
         ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.fastqPath, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
+        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.resultDict, unfilteredSun.resultDict, self.uuid, self.outDir)
 
 
 def main():

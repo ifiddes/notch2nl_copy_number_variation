@@ -102,17 +102,17 @@ class KmerModel(SequenceGraphLpProblem):
     
     """
     def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, 
-                sizeAdjust=0.20, singleVariableWeight=5, tightness=10):
+                sizeAdjust=0.20, singleVariableWeight=5):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
-        self.block_map = { x : [] for x in deBruijnGraph.paralogs }
+        self.block_map = { x[0] : [] for x in deBruijnGraph.paralogs }
+        self.offset_map = { x[0] : int(x[1]) for x in deBruijnGraph.paralogs }
 
         self.normalizing = normalizing
         self.breakpointPenalty = breakpointPenalty
         self.dataPenalty = dataPenalty
         self.sizeAdjust = sizeAdjust
         self.singleVariableWeight = singleVariableWeight
-        self.tightness = tightness
 
         self.buildBlocks(deBruijnGraph)
 
@@ -147,23 +147,10 @@ class KmerModel(SequenceGraphLpProblem):
                 var_a, var_b = variables[i-1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
-        for block in self.blocks:
-            for variable in block.variableIter():
-                self.constrain_approximately_equal(2.0, variable, penalty=self.tightness)
-
-
     def introduceData(self, kmerCounts, k1mer_size=49):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
         representing the results of kmer counting a WGS dataset (format seq:count)
-
-        dataPenalty represents the penalty in the ILP model for the copy number of each instance
-        to deviate from the data.
-
-        dataPenalty is scaled based both on block size and on the data value. The block size 
-        scaling gives higher weight to larger blocks under the assumption that the data are
-        less noisy. The data value scaling is used to handle deletions - lower data values
-        are weighted more.
 
         """
 
@@ -187,11 +174,10 @@ class KmerModel(SequenceGraphLpProblem):
                 
     def reportCopyMap(self):
         """
-        Reports copy number for the solved ILP problem.
+        Reports copy number for the solved ILP problem, exploding out so there is a value
+        for every x position. Used for graphs.
         """
         copy_map = defaultdict(list)
-        #find maximum position
-        max_pos = max(x[0] + len(x[2]) for y in self.block_map.values() for x in y)
         for para in self.block_map:
             #find the first variable for this one and extrapolate backwards
             for i in xrange(len(self.block_map[para])):
@@ -211,7 +197,4 @@ class KmerModel(SequenceGraphLpProblem):
                     prevVal = c
                 for k in xrange(start, stop):
                     copy_map[para].append(c)
-            if k < max_pos:
-                for k in xrange(k, max_pos):
-                    copy_map[para].append(c)
-        return copy_map, max_pos
+        return copy_map, self.offset_map

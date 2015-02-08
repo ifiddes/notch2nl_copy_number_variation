@@ -29,7 +29,7 @@ class SunModel(object):
         bases = set(["A", "T", "G", "C", "a", "t", "g", "c"])
         resultDict = defaultdict(list)
         nVals = []
-        for pos, (para, ref, alt) in self.wl.iteritems():
+        for pos, (para, ref, alt, hg38_pos) in self.wl.iteritems():
             posStr = "chr1:{0}-{0}".format(pos)
             pileUp = pysam.mpileup("-q", "10", "-r", posStr, bamIn)
             if len(pileUp) == 0:
@@ -70,36 +70,47 @@ class SunModel(object):
         f.subplots_adjust(hspace=0.4)
         plt.savefig(path)
 
-    def makeBedgraphs(self, resultDict, hg38=False):
-        if not os.path.exists(os.path.join(self.outDir, "bedgraphs")):
-            os.mkdir(os.path.join(self.outDir, "bedgraphs"))
+    def convertResultDict(self):
+        converted = defaultdict(list)
+        for para in self.resultDict:
+            for pos, frac in self.resultDict[para]:
+                converted[para].append([self.wl[pos][3], frac])
+        return converted
+
+    def makeHg19Bedgraphs(self, resultDict):
+        if not os.path.exists(os.path.join(self.outDir, "tracks")):
+            os.mkdir(os.path.join(self.outDir, "tracks"))
         for para in resultDict:
-            if hg38 is False:
-                path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.hg19.bedGraph".format( 
-                        self.uuid, para, self.__class__.__name__))
-            else:
-                path = os.path.join(self.outDir, "bedgraphs", "{}.Notch2NL-{}.{}.hg38.bedGraph".format( 
-                        self.uuid, para, self.__class__.__name__))
+            path = os.path.join(self.outDir, "tracks", "{}.Notch2NL-{}.{}.hg19.bedGraph".format( 
+                    self.uuid, para, self.__class__.__name__))
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
-                    "yLineMark=0.2 viewLimits=0.0:0.4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+                    "yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
                 outf.write(bedHeader.format(self.uuid + "_" + para))
                 for pos, frac in resultDict[para]:
-                    if hg38 is False:
-                        outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
-                    else:
-                        hg38_pos = self.wl[pos][3]
-                        outf.write("\t".join(map(str, ["chr1", hg38_pos, hg38_pos + 1, frac])) + "\n")
+                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
+
+    def makeHg38Bedgraphs(self, resultDict):
+        if not os.path.exists(os.path.join(self.outDir, "tracks")):
+            os.mkdir(os.path.join(self.outDir, "tracks"))
+        path = os.path.join(self.outDir, "tracks", "{}.{}.hg38.bedGraph".format(self.uuid, self.__class__.__name__))
+        with open(path, "w") as outf:
+            bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
+                    "yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+            outf.write(bedHeader.format(self.uuid))
+            for para in resultDict:
+                for pos, frac in resultDict[para]:
+                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")                 
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
         #plot the results
         #self.plotHistograms(self.resultDict)
-        self.makeBedgraphs(self.resultDict)
-        self.makeBedgraphs(self.resultDict, hg38=True)
+        self.makeHg19Bedgraphs(self.resultDict)
+        self.hg38ResultDict = self.convertResultDict()
+        self.makeHg38Bedgraphs(self.hg38ResultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
         #self.call_ilp()
-        #pickle.dump(self.resultDict, open(os.path.join(self.outDir, "resultDict.pickle"), "w"))
 
 
 class UnfilteredSunModel(SunModel):
@@ -128,14 +139,15 @@ class FilteredSunModel(SunModel):
             wl_list = [x.split() for x in wl if not x.startswith("#")]
         #dict mapping genome positions to which paralog has a SUN at that position
         #[paralog, hg19_pos, ref, alt, hg38_pos]
-        self.wl = {int(x[1]) : [x[0], x[2], x[3], x[4]] for x in wl_list}
+        self.wl = {int(x[1]) : [x[0], x[2], x[3], int(x[4])] for x in wl_list}
 
     def run(self):
         SunModel.run(self)
 
 
 class IlpModel(object):
-    def __init__(self, outDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir, saveCounts=False):
+    def __init__(self, outDir, bpPenalty, dataPenalty, fastqFile, uuid, graph, localTempDir, 
+                saveCounts=False):
         self.outDir = outDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
@@ -145,41 +157,16 @@ class IlpModel(object):
         self.localTempDir = localTempDir
         self.saveCounts = saveCounts
 
-    def plotResult(self, copyMap, maxPos, offset):
-        #first do overlaid figure
-        arrays = {}
-        colors = ["#4D4D4D","#5DA5DA","#FAA43A","#60BD68","#F17CB0"]
-        xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
-        sortedParalogs = sorted(copyMap.keys())
-        for para in sortedParalogs:
-            arrays[para] = np.array(copyMap[para], dtype="int")
-        fig = plt.figure()
-        plt.axis([offset, offset + maxPos + 1, 0, 14])
-        ax = plt.gca()
-        total = sum(arrays.values())
-        patches = []
-        for i, para in enumerate(sortedParalogs):
-            plt.fill_between(xvals, total, color=colors[i], alpha=0.7)
-            total -= arrays[para]
-            patches.append(mpatches.Patch(color=colors[i], label=para, alpha=0.7))
-        plt.legend(patches, sortedParalogs)
-        plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
-        plt.ylabel("Inferred Copy Number")
-        plt.savefig(os.path.join(self.outDir, self.uuid + ".overlaid.ILP.png"), format="png")
-        plt.close()
-        #now do individual plots on one png
-        fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
-        plt.suptitle("kmer-DeBruijn ILP results Notch2NL")
-        plt.yticks((0, 1, 2, 3, 4))
-        for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-            p.axis([offset, offset + maxPos + 1, 0, 4])
-            p.fill_between(xvals, copyMap[para], color=colors[i], alpha=0.7)
-            p.set_title("{} Copy Number".format(para))
-            p.scatter(xvals, copyMap[para], color=colors[i], alpha=0.7, s=0.3)
-        fig.subplots_adjust(hspace=0.5)
-        plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False)
-        plt.savefig(os.path.join(self.outDir, self.uuid + ".separated.ILP.png"), format="png")
-        plt.close()
+    def wigglePlots(self):
+        with open(os.path.join(self.outDir, "tracks", self.uuid + ".ILP.wig"), "w") as outf:
+            outf.write("track type=wiggle_0 name={} color=35,125,191 autoScale=off "
+                "visibility=full alwaysZero=on yLineMark=2 viewLimits=0:4 yLineOnOff=on "
+                "maxHeightPixels=100:75:50\n".format(self.uuid))
+            for para in self.resultDict:
+                offset = self.offsetMap[para]
+                outf.write("fixedStep chrom=chr1 start={} step=1\n".format(offset))
+                for v in self.resultDict[para]:
+                    outf.write("{}\n".format(v))   
 
     def run(self):    
         if self.saveCounts is not True:
@@ -208,10 +195,9 @@ class IlpModel(object):
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty)
         P.introduceData(dataCounts)
         P.solve()
-        self.resultDict, self.maxPos = P.reportCopyMap()
-        self.plotResult(self.resultDict, self.maxPos, G.offset)
-        self.offset = G.offset
-
+        self.resultDict, self.offsetMap = P.reportCopyMap()
+        self.wigglePlots()
+   
 
 def runJellyfish(localTempDir, countFile, fastqFile, uuid):
     jfFile = os.path.join(localTempDir, uuid + ".jf")
@@ -236,7 +222,8 @@ def alignQuery(fastqPath, remappedBamPath, tempDir, uuid, index):
     """
     #align the extracted reads to the index
     sortedBamPath = os.path.join(tempDir, "{}.sorted".format(uuid))
-    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, fastqPath, sortedBamPath))
+    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, 
+            fastqPath, sortedBamPath))
     #samtools appends .bam to sorted bam files
     sortedBamPath += ".bam"
     header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}
@@ -251,21 +238,22 @@ def alignQuery(fastqPath, remappedBamPath, tempDir, uuid, index):
     system("samtools index {}".format(remappedBamPath))
 
 
-def combinedPlot(ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset, uuid, outDir):
+def combinedPlot(ilpDict, offsetMap, filteredSunDict, unfilteredSunDict, uuid, outDir):
     """
     Generates a final combined plot overlaying both ILP and SUN results.
     """
     colors = ["#4D4D4D", "#5DA5DA", "#FAA43A", "#60BD68"]
-    #used because the ILP model uses single letter labels
+    #used because the SUN model uses single letter labels
     paraMap = {"Notch2NL-A":"A", "Notch2NL-B":"B", "Notch2NL-C":"C", "Notch2NL-D":"D"}
-    xvals = np.array(range(offset, offset + maxPos + 1), dtype="int")
     sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D"]
     ax = plt.gca()
-    fig, plots = plt.subplots(len(sortedParalogs), sharex=True, sharey=True)
+    fig, plots = plt.subplots(len(sortedParalogs), sharey=True)
     plt.yticks((0, 1, 2, 3, 4))
     plt.suptitle("kmer-DeBruijn ILP and SUN results")
     for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-        p.axis([offset, offset + maxPos + 1, 0, 4])
+        offset = offsetMap[para]
+        xvals = np.array(range(offset, offset + len(ilpDict[para])), dtype="int")
+        p.axis([offset, offset + len(xvals), 0, 4])
         p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
         p.set_title("{}".format(para))
         if len(unfilteredSunDict[paraMap[para]]) > 0:
@@ -274,7 +262,6 @@ def combinedPlot(ilpDict, filteredSunDict, unfilteredSunDict, maxPos, offset, uu
         if len(filteredSunDict[paraMap[para]]) > 0:
             sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
             p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")            
-    fig.subplots_adjust(hspace=0.5)
-    plt.setp([a.get_xticklabels() for a in fig.axes[:-1]], visible=False) 
+    fig.subplots_adjust(hspace=0.8)
     plt.savefig(os.path.join(outDir, uuid + ".combined.png"), format="png")
     plt.close()

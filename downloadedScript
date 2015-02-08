@@ -1,5 +1,5 @@
 #!/bin/bash
-batchSystem="gridEngine"
+batchSystem="singleMachine"
 maxThreads="15"
 defaultMemory="8589934592"
 jobTree=".downloadedJobTree/"
@@ -15,5 +15,5 @@ if [ -d ${jobTree} ]; then
     rm -rf ${jobTree}
 fi
 
-python src/downloadedPipeline.py --save_intermediate --graph data/graphs/large_graph_no_flag.pickle --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/downloadedPipeline.py --save_intermediate --graph data/graphs/OriginalWithOffsets.pickle --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
 

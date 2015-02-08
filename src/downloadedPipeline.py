@@ -61,7 +61,7 @@ class ModelWrapperDownloadedFiles(Target):
         unfilteredSun.run()
         ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.saveInter)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
+        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid, self.outDir)
 
 
 def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, saveInter):

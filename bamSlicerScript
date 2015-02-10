@@ -1,0 +1,19 @@
+#!/bin/bash
+batchSystem="gridEngine"
+maxThreads="15"
+defaultMemory="8589934592"
+jobTree=".slicerJobTree/"
+log="slicerLog.txt"
+maxCpus="250"
+queries="queries/lite_10_queries.pickle"
+
+
+export PYTHONPATH=./:${PYTHONPATH}
+export PATH=./sonLib/bin:./submodules/jobTree/bin:${PATH}
+
+
+if [ -d ${jobTree} ]; then 
+    rm -rf ${jobTree}
+fi
+
+python src/bamSlicerPipeline.py --save_intermediate -q ${queries} --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}

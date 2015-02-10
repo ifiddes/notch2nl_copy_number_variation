@@ -1,0 +1,24 @@
+#!/bin/bash
+batchSystem="singleMachine"
+maxThreads="20"
+defaultMemory="8589934592"
+jobTree=".ampliconJobTree/"
+log="ampliconLog.txt"
+maxCpus="250"
+
+
+export PYTHONPATH=./:${PYTHONPATH}
+export PATH=./sonLib/bin:./submodules/jobTree/bin:${PATH}
+
+
+if [ -d ${jobTree} ]; then 
+    rm -rf ${jobTree}
+fi
+
+if [ -z $1 ]; then
+    echo "provide a file listing fastq files"
+    exit 1
+fi
+
+python src/ampliconPipeline.py --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+

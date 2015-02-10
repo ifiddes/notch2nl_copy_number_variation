@@ -1,6 +1,6 @@
 #!/bin/bash
-batchSystem="parasol"
-maxThreads="15"
+batchSystem="singleMachine"
+maxThreads="20"
 defaultMemory="8589934592"
 jobTree=".ampliconJobTree/"
 log="ampliconLog.txt"

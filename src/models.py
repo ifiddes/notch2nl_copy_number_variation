@@ -94,13 +94,13 @@ class SunModel(object):
         if not os.path.exists(os.path.join(self.outDir, "tracks")):
             os.mkdir(os.path.join(self.outDir, "tracks"))
         path = os.path.join(self.outDir, "tracks", "{}.{}.hg38.bedGraph".format(self.uuid, self.__class__.__name__))
+        tmp = sorted([y for x in resultDict.itervalues() for y in x], key = lambda x: x[0])
         with open(path, "w") as outf:
             bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on "
                     "yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             outf.write(bedHeader.format(self.uuid))
-            for para in resultDict:
-                for pos, frac in resultDict[para]:
-                    outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")                 
+            for pos, frac in tmp:
+                outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")                 
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)

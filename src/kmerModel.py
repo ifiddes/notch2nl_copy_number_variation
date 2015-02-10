@@ -197,4 +197,19 @@ class KmerModel(SequenceGraphLpProblem):
                     prevVal = c
                 for k in xrange(start, stop):
                     copy_map[para].append(c)
+            c = pulp.value(next_var)
+            for k in xrange(stop, stop + len(next_block)):
+                copy_map[para].append(c)
         return copy_map, self.offset_map
+
+    def reportCondensedCopyMap(self):
+        """
+        Reports copy number for each ILP variable, once.
+        format [position, span, value]
+        """
+        copy_map = defaultdict(list)
+        for para in self.block_map:
+            offset = self.offset_map[para]
+            for start, var, block in self.block_map[para]:
+                copy_map[para].append([start + offset, len(block), pulp.value(var)])
+        return copy_map

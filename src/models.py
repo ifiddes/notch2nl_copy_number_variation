@@ -212,7 +212,7 @@ def downloadQuery(fastqPath, tempDir, key, queryString, uuid):
     system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
             """| samtools bam2fq /dev/stdin > {}""".format(queryString, 
             "haussler:" + key, os.path.join(tempDir, "tmp"), fastqPath))
-    if os.path.getsize(fastqFile) < 513:
+    if os.path.getsize(fastqPath) < 513:
         raise RuntimeError("curl did not download a BAM for {}. exiting.".format(uuid))
 
 

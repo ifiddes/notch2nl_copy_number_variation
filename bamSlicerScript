@@ -16,4 +16,4 @@ if [ -d ${jobTree} ]; then
     rm -rf ${jobTree}
 fi
 
-python src/bamSlicerPipeline.py --save_intermediate -q ${queries} --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/bamSlicerPipeline.py -q ${queries} --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}

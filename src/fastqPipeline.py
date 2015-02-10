@@ -50,7 +50,7 @@ class ModelWrapperLocalFile(Target):
         self.fastqPath = fastqPath
         self.saveInter = saveInter
         #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/SUN_data/hs_n2.masked.fa"
+        self.index = "./data/SUN_data/hs_n2.unmasked.fa"
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
         if not os.path.exists(self.outDir):

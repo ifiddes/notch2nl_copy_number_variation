@@ -68,7 +68,7 @@ class SlicerModelWrapper(Target):
         self.key = open(keyFile).readline().rstrip()
         self.saveInter = saveInter
         #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/SUN_data/hs_n2.masked.fa"
+        self.index = "./data/SUN_data/hs_n2.unmasked.fa"
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
         if not os.path.exists(self.outDir):
@@ -87,7 +87,7 @@ class SlicerModelWrapper(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqFile, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
         ilp.run()
         models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
 

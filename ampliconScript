@@ -20,5 +20,5 @@ if [ -z $1 ]; then
     exit 1
 fi
 
-python src/ampliconPipeline.py --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
+python src/ampliconPipeline.py --save_intermediate --fastq_list $1 --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
 

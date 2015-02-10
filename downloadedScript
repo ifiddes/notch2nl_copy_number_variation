@@ -1,6 +1,6 @@
 #!/bin/bash
 batchSystem="singleMachine"
-maxThreads="15"
+maxThreads="20"
 defaultMemory="8589934592"
 jobTree=".downloadedJobTree/"
 log="downloadedLog.txt"

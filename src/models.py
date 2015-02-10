@@ -38,7 +38,7 @@ class SunModel(object):
             if len(pileUpStr) != 6:
                 continue
             pileUpResult = Counter(x.upper() for x in pileUpStr[4] if x in bases)
-            if ref not in pileUpResult or alt not in pileUpResult:
+            if ref not in pileUpResult:
                 continue
             frac = formatRatio(pileUpResult[alt], sum(pileUpResult.values()))
             #invert fraction for Notch2 paralogs

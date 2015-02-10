@@ -40,7 +40,7 @@ class AmpliconModelWrapper(Target):
         self.saveInter = saveInter
         self.outDir = os.path.join(self.baseOutDir, self.uuid)
         #index is a bwa index of the region to be aligned to (one copy of notch2)
-        self.index = "./data/SUN_data/hs_n2.masked.fa"
+        self.index = "./data/SUN_data/hs_n2.unmasked.fa"
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
         if not os.path.exists(self.outDir):
@@ -51,7 +51,8 @@ class AmpliconModelWrapper(Target):
             bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".bam")
         else:
             bamPath = os.path.join(self.outDir, self.uuid + ".bam")
-        models.alignQuery(self.fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
+        if not os.path.exists(bamPath):
+            models.alignQuery(self.fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
         sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)

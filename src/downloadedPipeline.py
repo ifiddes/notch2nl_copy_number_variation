@@ -16,7 +16,7 @@ def buildParser():
             "For this model is where files will be hunted for."))
     parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=1.0,
+    parser.add_argument("--data_penalty", type=float, default=0.65,
             help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="./data/graphs/Notch2NL.pickle")

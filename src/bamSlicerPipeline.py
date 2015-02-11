@@ -34,7 +34,7 @@ def buildParser():
             default="/inside/home/cwilks/haussl_new.key",
             help="The key file to download protected data from cghub.")
     parser.add_argument("--graph", type=str, action=FullPaths,
-            default="./data/graphs/Notch2NL.pickle")
+            default="./data/graphs/OriginalWithOffsets.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
             help="Should we store the intermediates for debugging?")
     return parser
@@ -87,9 +87,9 @@ class SlicerModelWrapper(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.saveInter)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, sun.resultDict, unfilteredSun.resultDict, ilp.maxPos, ilp.offset, self.uuid, self.outDir)
+        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid, self.outDir)
 
 
 def main():

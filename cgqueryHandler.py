@@ -27,8 +27,8 @@ def parse_args():
             help="Study to look at. default=phs000178.")
     parser.add_argument("--library_strategy", default="WGS", 
             help="library type. default=WGS")
-    parser.add_argument("--target_range", "-t", nargs="+", default=["chr1:120309986-145388461"], 
-            help="target range(s) of assembly. default = chr1:120309986-145388461. include the word chr.")
+    parser.add_argument("--target_range", "-t", nargs="+", default=["chr1:119000000-147000000"], 
+            help="target range(s) of assembly. default = chr1:119000000-147000000. include the word chr.")
     parser.add_argument("--out", "-o", default="queries/queries.pickle", type=argparse.FileType("wb"), 
             help="Location to write out the pickled queries to. Default = queries/queries.pickle")
     parser.add_argument("--debug_cutoff", type=int)

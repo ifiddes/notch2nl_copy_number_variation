@@ -27,7 +27,7 @@ class Window(object):
 
 
 class SunIlpModel(SequenceGraphLpProblem):
-    def __init__(self, Avals, Bvals, windowSize, stepSize):
+    def __init__(self, Avals, Bvals, windowSize, stepSize, breakpoint_penalty, data_penalty):
         aStart = 146152644-5000
         bStart = 148603586-5000
         aStop = 146233816+5000
@@ -38,7 +38,7 @@ class SunIlpModel(SequenceGraphLpProblem):
             A = [y for x, y in Avals if x >= aPos and y < aPos]
             B = [y for x, y in Bvals if x >= bPos and y < bPos]
             self.windows.append([aPos, bPos, Window(A, B)])
-        self.build_model()
+        self.build_model(breakpoint_penalty, data_penalty)
 
     def get_results(self):
         """generator that yields mid, Aval, Bval results. ILP must be solved"""

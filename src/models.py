@@ -11,6 +11,7 @@ import numpy as np
 from pylab import setp
 
 from src.kmerModel import KmerModel
+from src.sunIlpModel import SunIlpModel
 from lib.general_lib import formatRatio, rejectOutliers, opener
 
 from jobTree.scriptTree.target import Target
@@ -38,7 +39,7 @@ class SunModel(object):
             if len(pileUpStr) != 6:
                 continue
             pileUpResult = Counter(x.upper() for x in pileUpStr[4] if x in bases)
-            if ref not in pileUpResult:
+            if ref not in pileUpResult or alt not in pileUpResult:
                 continue
             frac = formatRatio(pileUpResult[alt], sum(pileUpResult.values()))
             #invert fraction for Notch2 paralogs
@@ -100,7 +101,24 @@ class SunModel(object):
                     "yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             outf.write(bedHeader.format(self.uuid))
             for pos, frac in tmp:
-                outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")                 
+                outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")      
+
+    def callIlp(self, windowSize=7000, stepSize=1000, dataPenalty=0.5, breakpointPenalty=4):
+        Avals = sorted(self.hg38ResultDict["A"], key = lambda x: x[0])
+        Bvals = sorted(self.hg38ResultDict["B"], key = lambda x: x[0])
+        model = SunIlpModel(Avals, Bvals, windowSize, stepSize)
+        results = model.run()
+        if not os.path.exists(os.path.join(self.outDir, "tracks")):
+            os.mkdir(os.path.join(self.outDir, "tracks"))
+        path = os.path.join(self.outDir, "tracks", "{}.{}.hg38.SUN_ILP.wiggle".format(self.uuid, self.__class__.__name__)) 
+        with open(path, "w") as outf:
+            bedHeader = ("track type=wiggle_0 name={} autoScale=off visibility=full alwaysZero=on "
+                    "yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+            outf.write(bedHeader.format(self.uuid))
+            for pos, val in results:
+                mid = pos + windowSize / 2
+                outf.write("variableStep chrom=chr1 span={}\n{} {}\n".format(stepSize, mid, val))
+
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
@@ -110,7 +128,7 @@ class SunModel(object):
         self.hg38ResultDict = self.convertResultDict()
         self.makeHg38Bedgraphs(self.hg38ResultDict)
         #need to add (SUN-based) ILP here - hasn't been working with WGS data
-        #self.call_ilp()
+        self.callIlp()
 
 
 class UnfilteredSunModel(SunModel):
@@ -211,7 +229,7 @@ def downloadQuery(fastqPath, tempDir, key, queryString, uuid):
     """
     system("""curl --silent "{}" -u "{}" | samtools bamshuf -Ou /dev/stdin {} """
             """| samtools bam2fq /dev/stdin > {}""".format(queryString, 
-            "haussler:" + key, os.path.join(tempDir, "tmp"), fastqPath))
+            "haussler:" + key, os.path.join(tempDir, "tmp"), fastqFile))
     if os.path.getsize(fastqFile) < 513:
         raise RuntimeError("curl did not download a BAM for {}. exiting.".format(uuid))
 

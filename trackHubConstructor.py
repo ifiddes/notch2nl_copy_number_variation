@@ -35,10 +35,18 @@ def startHub(d, name):
 def buildTrackDb(d, paths):
     with open(os.path.join(d, "hg38", "trackDb.txt"), "w") as outf:
         for g, [sun, ilp, sun_ilp] in paths.iteritems():
-            outf.write("track {0}\ncontainer multiWig\nshortLabel {0}\nlongLabel {0}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
-            outf.write("track {0}_SUN\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n".format(g, os.path.basename(sun)))
-            outf.write("track {0}_ILP\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(ilp)))
-            outf.write("track {0}_SUN_ILP\ncolor 191,191,191\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(sun_ilp)))
+            outf.write("track {0}_combined\ncontainer multiWig\nshortLabel {0} Combined\nlongLabel {0} Combined\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+            outf.write("track {0}_SUN_combined\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n".format(g, os.path.basename(sun)))
+            outf.write("track {0}_ILP_combined\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n\n".format(g, os.path.basename(ilp)))
+            outf.write("track {0}_SUN_ILP_combined\ncolor 191,191,191\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n\n".format(g, os.path.basename(sun_ilp)))
+
+            outf.write("track {0}_kmer_ILP\ncontainer multiWig\nshortLabel {0} k-mer ILP\nlongLabel {0} k-mer ILP\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+            outf.write("track {0}_SUN_kmer\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_kmer_ILP\n\n".format(g, os.path.basename(sun)))
+            outf.write("track {0}_ILP_kmer\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_kmer_ILP\n\n\n".format(g, os.path.basename(ilp)))
+            
+            outf.write("track {0}_SUN_ILP\ncontainer multiWig\nshortLabel {0} SUN ILP\nlongLabel {0} SUN ILP\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+            outf.write("track {0}_SUN_sun\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_SUN_ILP\n\n".format(g, os.path.basename(sun)))
+            outf.write("track {0}_SUN_ILP_sun\ncolor 191,191,191\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_SUN_ILP\n\n\n".format(g, os.path.basename(sun_ilp)))
 
 
 def main():

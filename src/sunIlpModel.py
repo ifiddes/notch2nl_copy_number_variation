@@ -24,10 +24,10 @@ class Window(object):
 
 class SunIlpModel(SequenceGraphLpProblem):
     def __init__(self, Avals, Bvals, windowSize, stepSize):
-        aStart = 146152644
-        bStart = 148603586
-        aStop = 146233816
-        bStop = 148684557
+        aStart = 146152644-1000
+        bStart = 148603586-1000
+        aStop = 146233816+1000
+        bStop = 148684557+1000
         SequenceGraphLpProblem.__init__(self)
         self.windows = []
         for aPos, bPos in izip(xrange(aStart, aStop - windowSize, stepSize), xrange(bStart, bStop - windowSize, stepSize)):

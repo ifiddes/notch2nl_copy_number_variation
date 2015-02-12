@@ -37,8 +37,8 @@ def buildTrackDb(d, paths):
         for g, [sun, ilp, sun_ilp] in paths.iteritems():
             outf.write("track {0}\ncontainer multiWig\nshortLabel {0}\nlongLabel {0}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
             outf.write("track {0}_SUN\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n".format(g, os.path.basename(sun)))
-            outf.write("track {0}_ILP\ncolor 209,203,205\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(ilp)))
-            outf.write("track {0}_SUN_ILP\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(sun_ilp)))
+            outf.write("track {0}_ILP\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(ilp)))
+            outf.write("track {0}_SUN_ILP\ncolor 209,203,205\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(sun_ilp)))
 
 
 def main():

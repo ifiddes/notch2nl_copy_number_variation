@@ -16,7 +16,7 @@ def buildParser():
             "For this model is where files will be hunted for."))
     parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.5,
+    parser.add_argument("--data_penalty", type=float, default=0.65,
             help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
             default="./data/graphs/OriginalWithOffsets.pickle")
@@ -47,13 +47,13 @@ class ModelWrapperDownloadedFiles(Target):
 
     def run(self):
         fastqPath = os.path.join(self.outDir, self.uuid + ".fastq")
-        if not os.path.exists(fastqPath):
-            raise RuntimeError("fastq not in fastqPath. Schema is <uuid>.fastq")
         if self.saveInter is not True:
             bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".remapped.sorted.bam")
         else:
             bamPath = os.path.join(self.outDir, self.uuid + ".remapped.sorted.bam")
-        if not os.path.exists(bamPath):
+        if not os.path.exists(fastqPath) and not os.path.exists(bamPath):
+            raise RuntimeError("fastq not in fastqPath, and no BAM. Schema is <uuid>.fastq")
+        elif not os.path.exists(bamPath):
             models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
         sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
         sun.run()

@@ -28,10 +28,10 @@ class Window(object):
 
 class SunIlpModel(SequenceGraphLpProblem):
     def __init__(self, Avals, Bvals, windowSize, stepSize):
-        aStart = 146152644-4000
-        bStart = 148603586-4000
-        aStop = 146233816+4000
-        bStop = 148684557+4000
+        aStart = 146152644-5000
+        bStart = 148603586-5000
+        aStop = 146233816+5000
+        bStop = 148684557+5000
         SequenceGraphLpProblem.__init__(self)
         self.windows = []
         for aPos, bPos in izip(xrange(aStart, aStop - windowSize, stepSize), xrange(bStart, bStop - windowSize, stepSize)):
@@ -46,7 +46,7 @@ class SunIlpModel(SequenceGraphLpProblem):
         for aPos, bPos, window in self.windows:
             yield aPos, bPos, pulp.value(window.A), pulp.value(window.B)
 
-    def build_model(self, breakpoint_penalty=5, data_penalty=0.25):
+    def build_model(self, breakpoint_penalty, data_penalty):
         """Builds ILP model. Run this once before solving the model.
         See the program docstring for the math behind this"""
         for i in xrange(len(self.windows)):

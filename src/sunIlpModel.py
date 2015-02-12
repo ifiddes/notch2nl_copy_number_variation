@@ -13,10 +13,14 @@ class Window(object):
     def __init__(self, A, B):
         A_values = rejectOutliers(np.array(A))
         B_values = rejectOutliers(np.array(B))
-        assert len(A_values) > 0
-        assert len(B_values) > 0
-        self.A_value = np.mean(A_values)
-        self.B_value = np.mean(B_values)
+        if len(A_values) == 0:
+            self.A_value = 2
+        else:
+            self.A_value = np.mean(A_values)
+        if len(B_values) == 0:
+            self.B_value = 2
+        else:
+            self.B_value = np.mean(B_values)
         #save the LP variables that represent the inferred copy number at this window
         self.A = pulp.LpVariable("A_{}".format(get_id()), lowBound=0, upBound=4, cat="Integer")
         self.B = pulp.LpVariable("B_{}".format(get_id()), lowBound=0, upBound=4, cat="Integer")

@@ -103,7 +103,7 @@ class SunModel(object):
             for pos, frac in tmp:
                 outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")      
 
-    def callIlp(self, windowSize=7000, stepSize=1000, dataPenalty=0.5, breakpointPenalty=4):
+    def callIlp(self, windowSize=6500, stepSize=500, dataPenalty=0.75, breakpointPenalty=4):
         Avals = sorted(self.hg38ResultDict["A"], key = lambda x: x[0])
         Bvals = sorted(self.hg38ResultDict["B"], key = lambda x: x[0])
         model = SunIlpModel(Avals, Bvals, windowSize, stepSize)

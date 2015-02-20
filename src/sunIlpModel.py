@@ -28,11 +28,11 @@ class Window(object):
 
 
 class SunIlpModel(SequenceGraphLpProblem):
-    def __init__(self, Avals, Bvals, windowSize, stepSize, breakpoint_penalty, data_penalty):
-        aStart = 146152644 - 5000
-        bStart = 148603586 - 5000
-        aStop = 146233816 + 5000
-        bStop = 148684557 + 5000
+    def __init__(self, Avals, Bvals, windowSize, stepSize, breakpoint_penalty, data_penalty, deletion_penalty):
+        aStart = 146152644-3000
+        bStart = 148603586-3000
+        aStop = 146233816+4000
+        bStop = 148684557+4000
         SequenceGraphLpProblem.__init__(self)
         self.windows = []
         for aPos, bPos in izip(xrange(aStart, aStop - windowSize, stepSize),
@@ -40,7 +40,7 @@ class SunIlpModel(SequenceGraphLpProblem):
             A = [y for x, y in Avals if x >= aPos and y < aPos]
             B = [y for x, y in Bvals if x >= bPos and y < bPos]
             self.windows.append([aPos, bPos, Window(A, B)])
-        self.build_model(breakpoint_penalty, data_penalty)
+        self.build_model(breakpoint_penalty, data_penalty, deletion_penalty)
 
     def get_results(self):
         """generator that yields mid, Aval, Bval results. ILP must be solved"""
@@ -48,7 +48,7 @@ class SunIlpModel(SequenceGraphLpProblem):
         for aPos, bPos, window in self.windows:
             yield aPos, bPos, pulp.value(window.A), pulp.value(window.B)
 
-    def build_model(self, breakpoint_penalty, data_penalty):
+    def build_model(self, breakpoint_penalty, data_penalty, deletion_penalty):
         """Builds ILP model. Run this once before solving the model.
         See the program docstring for the math behind this"""
         for i in xrange(len(self.windows)):
@@ -56,6 +56,8 @@ class SunIlpModel(SequenceGraphLpProblem):
             # minimize differences between data and variables
             self.constrain_approximately_equal(window.A_value, window.A, data_penalty)
             self.constrain_approximately_equal(window.B_value, window.B, data_penalty)
+            #minimize deviation from 2 copies of A and B
+            self.constrain_approximately_equal(sum([window.A, window.B]), 4, deletion_penalty)
             if i != len(self.windows) - 1:
                 # penalize introducing breakpoints; tie windows together
                 next_window = self.windows[i + 1][-1]

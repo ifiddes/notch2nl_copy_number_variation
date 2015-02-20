@@ -104,10 +104,11 @@ class SunModel(object):
             for pos, frac in tmp:
                 outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
 
-    def callIlp(self, windowSize=5000, stepSize=250, dataPenalty=1, breakpointPenalty=1):
-        Avals = sorted(self.hg38ResultDict["A"], key=lambda x: x[0])
-        Bvals = sorted(self.hg38ResultDict["B"], key=lambda x: x[0])
-        model = SunIlpModel(Avals, Bvals, windowSize, stepSize, breakpointPenalty, dataPenalty)
+    def callIlp(self, windowSize=5000, stepSize=250, dataPenalty=1.50, breakpointPenalty=0.70,
+                deletionPenalty=2):
+        Avals = sorted(self.hg38ResultDict["A"], key = lambda x: x[0])
+        Bvals = sorted(self.hg38ResultDict["B"], key = lambda x: x[0])
+        model = SunIlpModel(Avals, Bvals, windowSize, stepSize, breakpointPenalty, dataPenalty, deletionPenalty)
         results = model.run()
         if not os.path.exists(os.path.join(self.outDir, "tracks")):
             os.mkdir(os.path.join(self.outDir, "tracks"))

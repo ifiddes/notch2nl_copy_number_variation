@@ -1,4 +1,5 @@
 import pulp, os
+
 """
 All code in this file written by Adam Novak
 """
@@ -10,15 +11,16 @@ def get_id():
     variable names are unique.
     
     """
-    
+
     if not hasattr(get_id, "last_id"):
         # Start our IDs at 0, which means the previous ID was -1. Static
         # variables in Python are hard.
         setattr(get_id, "last_id", -1)
-        
+
     # Advance the ID and return the fresh one.
     get_id.last_id += 1
     return get_id.last_id
+
 
 class PenaltyTree(object):
     """
@@ -26,7 +28,7 @@ class PenaltyTree(object):
     penalty terms without arbitrarily large constraint expressions.
     
     """
-    
+
     def __init__(self, degree=100):
         """
         Make a new PenaltyTree. degree specifies the maximum number of terms to
@@ -39,7 +41,7 @@ class PenaltyTree(object):
         self.degree = degree
         # This holds all our leaf-level terms.
         self.terms = []
-        
+
     def get_variable(self):
         """
         Return a fresh LpVariable with a unique name.
@@ -49,14 +51,14 @@ class PenaltyTree(object):
         var = pulp.LpVariable("PenaltyTree_{}".format(get_id()))
         # Give the fresh variable to the caller.
         return var
-        
+
     def add_term(self, term):
         """
         Add the given LP expression as a term in the tree.
         
         """
         self.terms.append(term)
-        
+
     def set_objective(self, problem):
         """
         Add the sum of all terms as the given LP problem's objective. The
@@ -92,7 +94,8 @@ class PenaltyTree(object):
         # We have now collected everything down to one term, which is in the
         # collecting list. Use it as our objective function.
         problem += collecting[0]
-        
+
+
 class SequenceGraphLpProblem(object):
     """
     Represents an LP copy number problem. You can attach several models to them,
@@ -101,6 +104,7 @@ class SequenceGraphLpProblem(object):
     Internally, contains a pulp LpProblem, and a PenaltyTree.
     
     """
+
     def __init__(self):
         """
         Make a new SequenceGraphLpProblem that we can solve.
@@ -132,7 +136,7 @@ class SequenceGraphLpProblem(object):
         # Add the constraint for not being more than that much under
         self.add_constraint(var_b >= var_a - amount_under)
         # Apply an equal penalty in each direction
-        self.add_penalty((penalty * amount_over) + (penalty * amount_under)) 
+        self.add_penalty((penalty * amount_over) + (penalty * amount_under))
 
     def add_penalty(self, term):
         """
@@ -167,7 +171,7 @@ class SequenceGraphLpProblem(object):
         # Set up the penalties described by the penalty tree
         self.penalties.set_objective(self.problem)
         # Solve the problem
-        status = self.problem.solve(pulp.COIN_CMD(path=os.path.join(os.path.expanduser("~"), "bin", "cbc"))) 
+        status = self.problem.solve(pulp.COIN_CMD(path=os.path.join(os.path.expanduser("~"), "bin", "cbc")))
         if status != pulp.constants.LpStatusOptimal:
             self.is_solved = False
             raise Exception("Unable to solve problem optimally.")

@@ -17,22 +17,23 @@ def buildParser():
     infiles.add_argument("--fastq_list", type=str, help="list of fastq files")
     parser.add_argument("--name", type=str, help="name")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
-            help="base output directory that results will be written to. Default is ./output/")
+                        help="base output directory that results will be written to. Default is ./output/")
     parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
-            help="breakpoint penalty used for ILP model.")
+                        help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=0.70,
-            help="data penalty used for ILP model.")
+                        help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
-            default="./data/graphs/Notch2NL.pickle")
+                        default="./data/graphs/Notch2NL.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
-            help="Should we store the intermediates for debugging?")
+                        help="Should we store the intermediates for debugging?")
     return parser
 
 
 def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
     for fastq in open(fastqList):
         fastq = fastq.rstrip()
-        target.addChildTarget(ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
+        target.addChildTarget(
+            ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
 
 
 class ModelWrapperLocalFile(Target):
@@ -40,6 +41,7 @@ class ModelWrapperLocalFile(Target):
     Runs BAM slicer pipeline but without the BAM slicing. Takes local fastq file(s) and runs
     it through all the analyses.
     """
+
     def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph, fastqPath, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
@@ -49,7 +51,7 @@ class ModelWrapperLocalFile(Target):
         self.graph = graph
         self.fastqPath = fastqPath
         self.saveInter = saveInter
-        #index is a bwa index of the region to be aligned to (one copy of notch2)
+        # index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.unmasked.fa"
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
@@ -66,9 +68,11 @@ class ModelWrapperLocalFile(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.fastqPath, self.uuid, self.graph, self.getLocalTempDir(), saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.fastqPath, self.uuid, self.graph,
+                              self.getLocalTempDir(), saveInter)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.resultDict, unfilteredSun.resultDict, self.uuid, self.outDir)
+        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.resultDict, unfilteredSun.resultDict, self.uuid,
+                            self.outDir)
 
 
 def main():
@@ -78,13 +82,18 @@ def main():
     setLoggingFromOptions(args)
 
     if args.fastq is not None:
-        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq, args.save_intermediate)).startJobTree(args)
+        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph,
+                                         args.fastq, args.save_intermediate)).startJobTree(args)
     else:
-        i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list, args.save_intermediate))).startJobTree(args)
+        i = Stack(Target.makeTargetFn(buildAnalyses, args=(
+            args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list,
+            args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")
 
+
 if __name__ == "__main__":
     from src.fastqPipeline import *
+
     main()

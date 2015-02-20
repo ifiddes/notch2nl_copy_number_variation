@@ -10,6 +10,7 @@ from lib.general_lib import rejectOutliers
 class Window(object):
     """Stores the allele fractions of the A and B probes in a specific window
     as well as the LP variables to be solved for this window"""
+
     def __init__(self, A, B):
         A_values = rejectOutliers(np.array(A))
         B_values = rejectOutliers(np.array(B))
@@ -21,20 +22,21 @@ class Window(object):
             self.B_value = 2
         else:
             self.B_value = np.mean(B_values)
-        #save the LP variables that represent the inferred copy number at this window
+        # save the LP variables that represent the inferred copy number at this window
         self.A = pulp.LpVariable("A_{}".format(get_id()), lowBound=0, upBound=4, cat="Integer")
         self.B = pulp.LpVariable("B_{}".format(get_id()), lowBound=0, upBound=4, cat="Integer")
 
 
 class SunIlpModel(SequenceGraphLpProblem):
     def __init__(self, Avals, Bvals, windowSize, stepSize, breakpoint_penalty, data_penalty):
-        aStart = 146152644-5000
-        bStart = 148603586-5000
-        aStop = 146233816+5000
-        bStop = 148684557+5000
+        aStart = 146152644 - 5000
+        bStart = 148603586 - 5000
+        aStop = 146233816 + 5000
+        bStop = 148684557 + 5000
         SequenceGraphLpProblem.__init__(self)
         self.windows = []
-        for aPos, bPos in izip(xrange(aStart, aStop - windowSize, stepSize), xrange(bStart, bStop - windowSize, stepSize)):
+        for aPos, bPos in izip(xrange(aStart, aStop - windowSize, stepSize),
+                               xrange(bStart, bStop - windowSize, stepSize)):
             A = [y for x, y in Avals if x >= aPos and y < aPos]
             B = [y for x, y in Bvals if x >= bPos and y < bPos]
             self.windows.append([aPos, bPos, Window(A, B)])
@@ -51,11 +53,11 @@ class SunIlpModel(SequenceGraphLpProblem):
         See the program docstring for the math behind this"""
         for i in xrange(len(self.windows)):
             window = self.windows[i][-1]
-            #minimize differences between data and variables
+            # minimize differences between data and variables
             self.constrain_approximately_equal(window.A_value, window.A, data_penalty)
             self.constrain_approximately_equal(window.B_value, window.B, data_penalty)
             if i != len(self.windows) - 1:
-                #penalize introducing breakpoints; tie windows together
+                # penalize introducing breakpoints; tie windows together
                 next_window = self.windows[i + 1][-1]
                 self.constrain_approximately_equal(window.A, next_window.A, breakpoint_penalty)
                 self.constrain_approximately_equal(window.B, next_window.B, breakpoint_penalty)
@@ -66,4 +68,4 @@ class SunIlpModel(SequenceGraphLpProblem):
         for aPos, bPos, aResult, bResult in self.get_results():
             results.append([aPos, aResult])
             results.append([bPos, bResult])
-        return sorted(results, key = lambda x: x[0])
+        return sorted(results, key=lambda x: x[0])

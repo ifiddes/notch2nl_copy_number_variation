@@ -22,16 +22,9 @@ def parse_args(args):
         help="File to write pickled DeBruijnGraph to.")
     parser.add_argument("--kmer_size", "-k", type=int, default=50, 
         help="kmer size. Default=50")
-    parser.add_argument("--genome_counts", "-g", type=argparse.FileType("r"),
-        help="Jellyfish kmer count fasta over genome sequences NOT containing region of interest."
-        "Counts should be of k-1mers (49mer).")
+    parser.add_argument("--bad_kmers", "-b", type=argparse.FileType("r"),
+        help="Text file of kmers that are to be flagged as bad. See findBadKmers.py")
     return parser.parse_args()
-
-
-def parseJellyfishCounts(file_handle):
-    rm = ">\n"
-    for count, seq in izip(*[file_handle]*2):
-        yield int(count.translate(None, rm)), seq.translate(None, rm)
 
 
 def main(args):
@@ -49,8 +42,8 @@ def main(args):
     G.finishBuild()
     G.pruneGraph()
 
-    if args.genome_counts is not None:
-        G.flagNodes(parseJellyfishCounts(args.genome_counts))
+    if args.bad_kmers is not None:
+        G.flagNodes(args.bad_kmers)
     
     pickle.dump(G, args.out)
 

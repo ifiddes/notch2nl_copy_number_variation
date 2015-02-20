@@ -17,8 +17,9 @@ class Block(object):
     Also stores all of the kmers in this block as a set.
 
     """
+
     def __init__(self, subgraph, topo_sorted, min_ploidy=0, max_ploidy=4):
-        #a set of all kmers represented by this block
+        # a set of all kmers represented by this block
         self.kmers = set()
         self.reverseKmers = set()
 
@@ -27,19 +28,20 @@ class Block(object):
                 self.kmers.add(kmer)
                 self.reverseKmers.add(reverseComplement(kmer))
 
-        #one variable for each instance of a input sequence
+        # one variable for each instance of a input sequence
         self.variables = {}
 
         #since each node has the same set of sequences, and we have a topological sort, we can 
         #pull down the positions of the first node only
         start_node = subgraph.node[topo_sorted[0]]
-        
+
         #build variables for each instance
         for para_start in start_node["label"].split(", "):
             para, start = para_start.split("_")
             if len(self.kmers) > 0:
-                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
-                    lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
+                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start),
+                                                                     lowBound=min_ploidy, upBound=max_ploidy,
+                                                                     cat="Integer")
             else:
                 self.variables[(para, int(start))] = None
 
@@ -72,6 +74,7 @@ class Block(object):
         """returns counts of data seen in this block"""
         return self.count
 
+
 class KmerModel(SequenceGraphLpProblem):
     """
     Represents a kmer DeBruijnGraph model to infer copy number of highly
@@ -94,12 +97,13 @@ class KmerModel(SequenceGraphLpProblem):
     tightness: How much do we want to favor copy number of defaultPloidy?
     
     """
-    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, 
-                tightness=1, defaultPloidy=2):
+
+    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1,
+                 tightness=1, defaultPloidy=2):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
-        self.block_map = { x[0] : [] for x in deBruijnGraph.paralogs }
-        self.offset_map = { x[0] : int(x[1]) for x in deBruijnGraph.paralogs }
+        self.block_map = {x[0]: [] for x in deBruijnGraph.paralogs}
+        self.offset_map = {x[0]: int(x[1]) for x in deBruijnGraph.paralogs}
 
         self.normalizing = normalizing
         self.breakpointPenalty = breakpointPenalty
@@ -116,10 +120,10 @@ class KmerModel(SequenceGraphLpProblem):
         DeBruijnGraph, which is a networkx DeBruijnGraph built over the genome region of interest.
 
         """
-        #make sure the graph has been initialized and pruned
+        # make sure the graph has been initialized and pruned
         assert deBruijnGraph.is_pruned and deBruijnGraph.has_sequences
 
-        #build the blocks, don't tie them together yet
+        # build the blocks, don't tie them together yet
         for subgraph, topo_sorted in deBruijnGraph.weaklyConnectedSubgraphs():
             b = Block(subgraph, topo_sorted)
             self.blocks.append(b)
@@ -130,14 +134,14 @@ class KmerModel(SequenceGraphLpProblem):
 
         #sort the block maps by start positions
         for para in self.block_map:
-            self.block_map[para] = sorted(self.block_map[para], key = lambda x: x[0])
-        
+            self.block_map[para] = sorted(self.block_map[para], key=lambda x: x[0])
+
         #now we tie the blocks together
         for para in self.block_map:
             #filter out all blocks without variables (no kmers)
             variables = [v for s, v, b in self.block_map[para] if v is not None]
             for i in xrange(1, len(variables)):
-                var_a, var_b = variables[i-1], variables[i]
+                var_a, var_b = variables[i - 1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
         #tie each variable to be approximately equal to copy number 2 subject to the tightness constraint
@@ -154,14 +158,14 @@ class KmerModel(SequenceGraphLpProblem):
 
         for block in self.blocks:
             if len(block) > 0:
-                count = sum( kmerCounts.get(x, 0) for x in block.getKmers() )
-                count += sum( kmerCounts.get(x, 0) for x in block.getReverseKmers() )
+                count = sum(kmerCounts.get(x, 0) for x in block.getKmers())
+                count += sum(kmerCounts.get(x, 0) for x in block.getReverseKmers())
 
                 adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
 
-                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), 
-                        penalty=self.data_penalty)
-                
+                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()),
+                                                   penalty=self.data_penalty)
+
     def reportCopyMap(self):
         """
         Reports copy number for the solved ILP problem, exploding out so there is a value
@@ -169,7 +173,7 @@ class KmerModel(SequenceGraphLpProblem):
         """
         copy_map = defaultdict(list)
         for para in self.block_map:
-            #find the first variable for this one and extrapolate backwards
+            # find the first variable for this one and extrapolate backwards
             for i in xrange(len(self.block_map[para])):
                 start, var, block = self.block_map[para][i]
                 if var is not None:
@@ -177,7 +181,7 @@ class KmerModel(SequenceGraphLpProblem):
                     for j in xrange(start):
                         copy_map[para].append(prevVal)
                     break
-            for j in xrange(i+1, len(self.block_map[para])):
+            for j in xrange(i + 1, len(self.block_map[para])):
                 start, var, block = self.block_map[para][j - 1]
                 stop, next_var, next_block = self.block_map[para][j]
                 if var is None:

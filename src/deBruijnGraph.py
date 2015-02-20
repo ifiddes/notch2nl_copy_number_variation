@@ -3,6 +3,7 @@ import string
 from collections import Counter
 from jobTree.src.bioio import reverseComplement
 
+
 class DeBruijnGraph(object):
     """
     Represents a DeBruijnGraph using networkx. Sequences are stored on each node as a
@@ -23,6 +24,7 @@ class DeBruijnGraph(object):
     This by definition removes all cycles as well as all strong connected components.
 
     """
+
     def __init__(self, kmer_size):
         self.kmer_size = kmer_size
         self.G = nx.DiGraph()
@@ -49,8 +51,8 @@ class DeBruijnGraph(object):
         """
         k = self.kmer_size - 1
 
-        for i in xrange(len(seq)-k):
-            s = seq[i:i+k].upper()
+        for i in xrange(len(seq) - k):
+            s = seq[i:i + k].upper()
             if "N" in s:
                 continue
             self.normalizingKmers.add(s)
@@ -65,12 +67,12 @@ class DeBruijnGraph(object):
         """
         k = self.kmer_size - 1
         self.paralogs.append([name, offset])
-        #TODO - handle names longer than 1 character by truncating
+        # TODO - handle names longer than 1 character by truncating
         paralogNodeCount = Counter()
 
-        for i in xrange(len(seq)-k):
-            #left and right k-1mers 
-            km1L, km1R = seq[i:i+k].upper(), seq[i+1:i+k+1].upper()
+        for i in xrange(len(seq) - k):
+            # left and right k-1mers
+            km1L, km1R = seq[i:i + k].upper(), seq[i + 1:i + k + 1].upper()
             if "N" in km1L or "N" in km1R:
                 continue
 
@@ -81,7 +83,7 @@ class DeBruijnGraph(object):
                 self.G.node[km1L]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
                 self.G.node[km1L]["count"] += 1
                 paralogNodeCount[name] += 1
-            
+
             if self.G.has_node(km1R) is not True:
                 self.G.add_node(km1R, label=[], count=0)
 
@@ -89,7 +91,7 @@ class DeBruijnGraph(object):
             self.kmers.add(km1L)
             self.reverseKmers.add(reverseComplement(km1L))
 
-        #need to count the last kmer also
+        # need to count the last kmer also
         self.G.node[km1R]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
         self.G.node[km1R]["count"] += 1
         self.kmers.add(km1R)
@@ -100,7 +102,7 @@ class DeBruijnGraph(object):
     def finishBuild(self):
         for node in self.G.nodes():
             self.G.node[node]["label"] = ", ".join(sorted(self.G.node[node]["label"]))
-        self.paralogs = sorted(self.paralogs, key = lambda x: x[0])
+        self.paralogs = sorted(self.paralogs, key=lambda x: x[0])
 
     def pruneGraph(self):
         """
@@ -133,22 +135,17 @@ class DeBruijnGraph(object):
         for subgraph in nx.weakly_connected_component_subgraphs(self.G):
             yield (subgraph, nx.topological_sort(subgraph))
 
-    def flagNodes(self, kmer_iter, cutoff=1):
+    def flagNodes(self, kmer_iter):
         """
         Iterates over a kmer_iter and flags nodes as being bad.
         This is used to flag nodes whose kmer is represented elsewhere
         in the genome, so that we won't count it later.
-        Therefore, kmer_iter should be an iterable yielding
-        sequence strings from a Jellyfish count file.
         Note that the kmer counts should be k-1mers
 
-        Cutoff determines the minimum number of counts seen elsewhere
-        in the genome to count as a flagged node.
-
         """
-        for count, k1mer in kmer_iter:
-            if count >= cutoff:
-                if k1mer in self.kmers:
-                    self.G.node[k1mer]['bad'] = True
-                elif reverseComplement(k1mer) in self.reverseKmers:
-                    self.G.node[k1mer]['bad'] = True
+        for k1mer in kmer_iter:
+            k1mer = k1mer.rstrip()
+            if k1mer in self.kmers:
+                self.G.node[k1mer]['bad'] = True
+            elif reverseComplement(k1mer) in self.reverseKmers:
+                self.G.node[k1mer]['bad'] = True

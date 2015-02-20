@@ -14,9 +14,9 @@ def buildParser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fastq_list", type=str, help="list of fastq files")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./amplicon_output/",
-            help="base output directory that results will be written to. Default is ./amplicon_output/")
+                        help="base output directory that results will be written to. Default is ./amplicon_output/")
     parser.add_argument("--save_intermediate", action="store_true",
-            help="Should we store the intermediates for debugging?")
+                        help="Should we store the intermediates for debugging?")
     return parser
 
 
@@ -32,6 +32,7 @@ class AmpliconModelWrapper(Target):
     Runs BAM slicer pipeline but without the BAM slicing. Takes local fastq file(s) and runs
     it through all the analyses.
     """
+
     def __init__(self, uuid, baseOutDir, fastqPath, saveInter):
         Target.__init__(self)
         self.uuid = uuid
@@ -39,7 +40,7 @@ class AmpliconModelWrapper(Target):
         self.fastqPath = fastqPath
         self.saveInter = saveInter
         self.outDir = os.path.join(self.baseOutDir, self.uuid)
-        #index is a bwa index of the region to be aligned to (one copy of notch2)
+        # index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.unmasked.fa"
         if not os.path.exists(self.baseOutDir):
             os.mkdir(self.baseOutDir)
@@ -58,17 +59,22 @@ class AmpliconModelWrapper(Target):
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
 
+
 def main():
     parser = buildParser()
     Stack.addJobTreeOptions(parser)
     args = parser.parse_args()
     setLoggingFromOptions(args)
 
-    i = Stack(Target.makeTargetFn(buildAnalyses, args=(args.output, args.fastq_list, args.save_intermediate))).startJobTree(args)
+    i = Stack(
+        Target.makeTargetFn(buildAnalyses, args=(args.output, args.fastq_list, args.save_intermediate))).startJobTree(
+        args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")
 
+
 if __name__ == "__main__":
     from src.ampliconPipeline import *
+
     main()

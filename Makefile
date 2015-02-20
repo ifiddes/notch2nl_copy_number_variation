@@ -1,4 +1,4 @@
-batchSystem = gridEngine
+batchSystem = singleMachine
 maxThreads = 15
 defaultMemory = 8589934592
 jobTree = .jobTree

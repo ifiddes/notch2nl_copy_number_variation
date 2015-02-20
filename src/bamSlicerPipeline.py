@@ -26,9 +26,9 @@ def buildParser():
             help="pickled query file produced by cgquery_handler.py. Default is ./queries/queries.pickle")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
             help="base output directory that results will be written to. Default is ./output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=30.0,
             help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.70,
+    parser.add_argument("--data_penalty", type=float, default=0.65,
             help="data penalty used for ILP model.")
     parser.add_argument("--key_file", type=str, action=FullPaths,
             default="/inside/home/cwilks/haussl_new.key",

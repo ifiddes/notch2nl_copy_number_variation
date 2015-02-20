@@ -34,10 +34,21 @@ def startHub(d, name):
 
 def buildTrackDb(d, paths):
     with open(os.path.join(d, "hg38", "trackDb.txt"), "w") as outf:
-        for g, [sun, ilp] in paths.iteritems():
-            outf.write("track {0}\ncontainer multiWig\nshortLabel {0}\nlongLabel {0}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
-            outf.write("track {0}_SUN\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n".format(g, os.path.basename(sun)))
-            outf.write("track {0}_ILP\ncolor 163,116,87\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}\n\n\n".format(g, os.path.basename(ilp)))
+        for g, [sun, ilp, sun_ilp] in paths.iteritems():
+            if ilp is not None:
+                outf.write("track {0}_combined\ncontainer multiWig\nshortLabel {0} Combined\nlongLabel {0} Combined\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+                outf.write("track {0}_SUN_combined\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n".format(g, os.path.basename(sun)))
+                outf.write("track {0}_ILP_combined\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n\n".format(g, os.path.basename(ilp)))
+                outf.write("track {0}_SUN_ILP_combined\ncolor 191,191,191\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_combined\n\n\n".format(g, os.path.basename(sun_ilp)))
+
+            if ilp is not None:
+                outf.write("track {0}_kmer_ILP\ncontainer multiWig\nshortLabel {0} k-mer ILP\nlongLabel {0} k-mer ILP\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+                outf.write("track {0}_SUN_kmer\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_kmer_ILP\n\n".format(g, os.path.basename(sun)))
+                outf.write("track {0}_ILP_kmer\ncolor 242,148,176\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_kmer_ILP\n\n\n".format(g, os.path.basename(ilp)))
+            
+            outf.write("track {0}_SUN_ILP\ncontainer multiWig\nshortLabel {0} SUN ILP\nlongLabel {0} SUN ILP\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\n\n".format(g))
+            outf.write("track {0}_SUN_sun\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_SUN_ILP\n\n".format(g, os.path.basename(sun)))
+            outf.write("track {0}_SUN_ILP_sun\ncolor 191,191,191\nshortLabel {0}\nlongLabel {0}\nbigDataUrl {1}\ntype bigWig 0 4\nautoScale off\nvisibility full\nalwaysZero on\nyLineMark 2\nviewLimits 0:4\nyLineOnOff on\nmaxHeightPixels 100:75:50\nparent {0}_SUN_ILP\n\n\n".format(g, os.path.basename(sun_ilp)))
 
 
 def main():
@@ -49,12 +60,22 @@ def main():
     for g in genomes:
         bg = os.path.join(args.output, g, "tracks", g + ".UnfilteredSunModel.hg38.bedGraph")
         ilp = os.path.join(args.output, g, "tracks", g + ".ILP.wig")
+        sun = os.path.join(args.output, g, "tracks", g + ".UnfilteredSunModel.hg38.SUN_ILP.wiggle")
         out_sun_bw = os.path.join(args.assembly_dir, "hg38", g + ".Sun.bw")
         out_ilp_bw = os.path.join(args.assembly_dir, "hg38", g + ".ILP.bw")
-        system("bedGraphToBigWig {} {} {}".format(bg, args.chrom_sizes, out_sun_bw))
-        system("wigToBigWig {} {} {}".format(ilp, args.chrom_sizes, out_ilp_bw))
-        paths[g] = [out_sun_bw, out_ilp_bw]
-
+        out_sun_ilp_bw = os.path.join(args.assembly_dir, "hg38", g + ".SUN_ILP.bw")
+        if os.path.exists(bg) and os.path.exists(ilp) and os.path.exists(sun):
+            system("bedGraphToBigWig {} {} {}".format(bg, args.chrom_sizes, out_sun_bw))
+            system("wigToBigWig {} {} {}".format(ilp, args.chrom_sizes, out_ilp_bw))
+            system("wigToBigWig {} {} {}".format(sun, args.chrom_sizes, out_sun_ilp_bw))
+            paths[g] = [out_sun_bw, out_ilp_bw, out_sun_ilp_bw]
+        elif os.path.exists(bg) and os.path.exists(sun):
+            #probably amplicon
+            system("bedGraphToBigWig {} {} {}".format(bg, args.chrom_sizes, out_sun_bw))
+            system("wigToBigWig {} {} {}".format(sun, args.chrom_sizes, out_sun_ilp_bw))
+            paths[g] = [out_sun_bw, None, out_sun_ilp_bw]            
+        else:
+            sys.stderr.write("Error: {} lacks tracks. Skipping.\n".format(g))
     buildTrackDb(args.assembly_dir, paths)
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ def buildParser():
     parser.add_argument("--data_penalty", type=float, default=0.65,
             help="data penalty used for ILP model.")
     parser.add_argument("--graph", type=str, action=FullPaths,
-            default="./data/graphs/Notch2NL.pickle")
+            default="./data/graphs/OriginalWithOffsets.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
             help="Should we store the intermediates for debugging?")
     return parser

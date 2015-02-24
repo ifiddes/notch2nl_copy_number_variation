@@ -22,6 +22,8 @@ def buildParser():
                         help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=0.70,
                         help="data penalty used for ILP model.")
+    parser.add_argument("--tightness_penalty", type=float, default=0.5,
+                        help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--graph", type=str, action=FullPaths,
                         default="./data/graphs/Notch2NL.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
@@ -29,11 +31,11 @@ def buildParser():
     return parser
 
 
-def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, graph, fastqList, saveInter=False):
+def buildAnalyses(target, name, output, breakpoint_penalty, data_penalty, tightness, graph, fastqList, saveInter=False):
     for fastq in open(fastqList):
         fastq = fastq.rstrip()
         target.addChildTarget(
-            ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, graph, fastq, saveInter))
+            ModelWrapperLocalFile(name, output, breakpoint_penalty, data_penalty, tightness, graph, fastq, saveInter))
 
 
 class ModelWrapperLocalFile(Target):
@@ -42,12 +44,13 @@ class ModelWrapperLocalFile(Target):
     it through all the analyses.
     """
 
-    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph, fastqPath, saveInter):
+    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, tightness, graph, fastqPath, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.baseOutDir = baseOutDir
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
+        self.tightness = tightness
         self.graph = graph
         self.fastqPath = fastqPath
         self.saveInter = saveInter
@@ -68,8 +71,8 @@ class ModelWrapperLocalFile(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.fastqPath, self.uuid, self.graph,
-                              self.getLocalTempDir(), saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness, self.fastqPath, self.uuid,
+                              self.graph, self.getLocalTempDir(), saveInter)
         ilp.run()
         models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.resultDict, unfilteredSun.resultDict, self.uuid,
                             self.outDir)
@@ -82,12 +85,13 @@ def main():
     setLoggingFromOptions(args)
 
     if args.fastq is not None:
-        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph,
-                                         args.fastq, args.save_intermediate)).startJobTree(args)
+        i = Stack(ModelWrapperLocalFiles(args.name, args.output, args.breakpoint_penalty, args.data_penalty,
+                                         args.tightness_penalty, args.graph, args.fastq,
+                                         args.save_intermediate)).startJobTree(args)
     else:
         i = Stack(Target.makeTargetFn(buildAnalyses, args=(
-            args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.fastq_list,
-            args.save_intermediate))).startJobTree(args)
+            args.name, args.output, args.breakpoint_penalty, args.data_penalty, args.tightness_penalty, args.graph,
+            args.fastq_list, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

@@ -31,6 +31,8 @@ def buildParser():
                         help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=0.65,
                         help="data penalty used for ILP model.")
+    parser.add_argument("--tightness_penalty", type=float, default=0.5,
+                        help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--key_file", type=str, action=FullPaths,
                         default="/inside/home/cwilks/haussl_new.key",
                         help="The key file to download protected data from cghub.")
@@ -41,10 +43,10 @@ def buildParser():
     return parser
 
 
-def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
+def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, saveInter):
     logger.info("Starting to build analyses")
     for uuid, queryString in queries.iteritems():
-        target.addChildTarget(SlicerModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty,
+        target.addChildTarget(SlicerModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness,
                                                  keyFile, graph, saveInter))
 
 
@@ -57,7 +59,7 @@ class SlicerModelWrapper(Target):
     Finally, the results of both models is used to build a combined plot.
     """
 
-    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, keyFile, graph, saveInter):
+    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.queryString = queryString
@@ -65,6 +67,7 @@ class SlicerModelWrapper(Target):
         self.outDir = os.path.join(baseOutDir, self.uuid)
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
+        self.tightness = tightness
         self.graph = graph
         self.saveInter = saveInter
         self.key = open(keyFile).readline().rstrip()
@@ -89,8 +92,8 @@ class SlicerModelWrapper(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph,
-                              self.getLocalTempDir(), self.saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness, fastqPath, self.uuid,
+                              self.graph, self.getLocalTempDir(), self.saveInter)
         ilp.run()
         models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid,
                             self.outDir)
@@ -104,8 +107,8 @@ def main():
     queries = pickle.load(args.queries)
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(queries, args.output, args.breakpoint_penalty,
-                                                       args.data_penalty, args.key_file, args.graph,
-                                                       args.save_intermediate))).startJobTree(args)
+                                                       args.data_penalty, args.tightness_penalty, args.key_file,
+                                                       args.graph, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

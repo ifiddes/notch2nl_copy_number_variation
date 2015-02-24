@@ -16,4 +16,3 @@ if [ -d ${jobTree} ]; then
 fi
 
 python src/downloadedPipeline.py --save_intermediate --maxThreads=${maxThreads} --batchSystem=${batchSystem} --maxCpus ${maxCpus} --defaultMemory=${defaultMemory} --jobTree ${jobTree} --logLevel DEBUG --stats &> ${log}
-

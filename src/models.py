@@ -1,4 +1,4 @@
-import sys, os, pysam, vcf, string, gzip
+import sys, os, pysam, vcf, string, gzip, math
 import cPickle as pickle
 from itertools import izip
 from collections import defaultdict, Counter
@@ -85,8 +85,8 @@ class SunModel(object):
         for para in resultDict:
             path = os.path.join(self.outDir, "tracks", "{}.Notch2NL-{}.{}.hg19.bedGraph".format(
                 self.uuid, para, self.__class__.__name__))
-            bedHeader = (
-                "track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+            bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 "
+                        "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
                 outf.write(bedHeader.format(self.uuid + "_" + para))
                 for pos, frac in resultDict[para]:
@@ -98,8 +98,8 @@ class SunModel(object):
         path = os.path.join(self.outDir, "tracks", "{}.{}.hg38.bedGraph".format(self.uuid, self.__class__.__name__))
         tmp = sorted([y for x in resultDict.itervalues() for y in x], key=lambda x: x[0])
         with open(path, "w") as outf:
-            bedHeader = (
-                "track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+            bedHeader = ("track type=bedGraph name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 "
+                        "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             outf.write(bedHeader.format(self.uuid))
             for pos, frac in tmp:
                 outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
@@ -115,8 +115,8 @@ class SunModel(object):
         path = os.path.join(self.outDir, "tracks",
                             "{}.{}.hg38.SUN_ILP.wiggle".format(self.uuid, self.__class__.__name__))
         with open(path, "w") as outf:
-            bedHeader = (
-                "track type=wiggle_0 name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
+            bedHeader = ("track type=wiggle_0 name={} autoScale=off visibility=full alwaysZero=on yLineMark=2 "
+                        "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             outf.write(bedHeader.format(self.uuid))
             for pos, val in results:
                 mid = pos + windowSize / 2
@@ -130,15 +130,16 @@ class SunModel(object):
         self.makeHg19Bedgraphs(self.resultDict)
         self.hg38ResultDict = self.convertResultDict()
         self.makeHg38Bedgraphs(self.hg38ResultDict)
-        # need to add (SUN-based) ILP here - hasn't been working with WGS data
-        self.callIlp()
+        if self.doIlp is True:
+            self.callIlp()
 
 
 class UnfilteredSunModel(SunModel):
-    def __init__(self, outDir, uuid, bamPath):
+    def __init__(self, outDir, uuid, bamPath, doIlp=False):
         self.uuid = uuid
         self.bamPath = bamPath
         self.outDir = outDir
+        self.doIlp = doIlp
         # whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
         with open("./data/SUN_data/hg38_unfiltered_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
@@ -151,10 +152,11 @@ class UnfilteredSunModel(SunModel):
 
 
 class FilteredSunModel(SunModel):
-    def __init__(self, outDir, uuid, bamPath):
+    def __init__(self, outDir, uuid, bamPath, doIlp=False):
         self.uuid = uuid
         self.bamPath = bamPath
         self.outDir = outDir
+        self.doIlp = doIlp
         # whitelist is a text file of whitelisted SUN positions - in this case, unfiltered
         with open("./data/SUN_data/hg38_whitelist.txt") as wl:
             wl_list = [x.split() for x in wl if not x.startswith("#")]
@@ -167,7 +169,7 @@ class FilteredSunModel(SunModel):
 
 
 class IlpModel(object):
-    def __init__(self, outDir, bpPenalty, dataPenalty, tightness, fastqFile, uuid, graph, localTempDir,
+    def __init__(self, outDir, bpPenalty, dataPenalty, tightness, tightness2, fastqFile, uuid, graph, localTempDir,
                  saveCounts=False):
         self.outDir = outDir
         self.uuid = uuid
@@ -177,19 +179,26 @@ class IlpModel(object):
         self.graph = graph
         self.localTempDir = localTempDir
         self.tightness = tightness
+        self.tightness2 = tightness2
         self.saveCounts = saveCounts
 
     def wigglePlots(self):
         with open(os.path.join(self.outDir, "tracks", self.uuid + ".ILP.wig"), "w") as outf:
             outf.write(
                 "track type=wiggle_0 name={} color=35,125,191 autoScale=off visibility=full alwaysZero=on yLineMark=2 "
-                "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n".format(
-                    self.uuid))
+                "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n".format(self.uuid))
             for para in self.resultDict:
-                offset = self.offsetMap[para]
-                outf.write("fixedStep chrom=chr1 start={} step=1\n".format(offset))
-                for v in self.resultDict[para]:
-                    outf.write("{}\n".format(v))
+                for start, span, val in self.resultDict[para]:
+                    outf.write("variableStep chrom=chr1 span={}\n".format(span))
+                    outf.write("{} {}\n".format(start, val))
+        with open(os.path.join(self.outDir, "tracks", self.uuid + ".KmerCounts.wig"), "w") as outf:
+            outf.write(
+                "track type=wiggle_0 name={} color=63,153,158 autoScale=off visibility=full alwaysZero=on yLineMark=2 "
+                "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n".format(self.uuid))
+            for para in self.rawCounts:
+                for start, span, val in self.rawCounts[para]:
+                    outf.write("variableStep chrom=chr1 span={}\n".format(span))
+                    outf.write("{} {}\n".format(start, val))
 
     def run(self):
         if self.saveCounts is not True:
@@ -214,10 +223,12 @@ class IlpModel(object):
         # adjust ILP penalties for coverage in this sequencing run
         normalizing = ((1.0 * sum(dataCounts.get(x, 0) for x in G.normalizingKmers) + sum(
             dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) / len(G.normalizingKmers))
-        P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness)
+        P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
         P.introduceData(dataCounts)
         P.solve()
-        self.resultDict, self.offsetMap = P.reportCopyMap()
+        self.resultDict = P.reportCondensedCopyMap()
+        self.rawCounts = P.reportCondensedNormalizedRawDataMap()
+        self.offsetMap = P.getOffsets()
         self.wigglePlots()
 
 
@@ -260,30 +271,47 @@ def alignQuery(fastqPath, remappedBamPath, tempDir, uuid, index):
     system("samtools index {}".format(remappedBamPath))
 
 
-def combinedPlot(ilpDict, offsetMap, filteredSunDict, unfilteredSunDict, uuid, outDir):
+def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir):
     """
     Generates a final combined plot overlaying both ILP and SUN results.
     """
-    colors = ["#4D4D4D", "#5DA5DA", "#FAA43A", "#60BD68"]
+    colors = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#2ecc71"]
+    rawColor = "#C7C7C7"
+    explodedRawCounts = explodeResultDict(rawCounts)
+    explodedData = explodeResultDict(ilpDict)
     # used because the SUN model uses single letter labels
-    paraMap = {"Notch2NL-A": "A", "Notch2NL-B": "B", "Notch2NL-C": "C", "Notch2NL-D": "D"}
-    sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D"]
+    paraMap = {"Notch2NL-A": "A", "Notch2NL-B": "B", "Notch2NL-C": "C", "Notch2NL-D": "D", "Notch2": "N"}
+    sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D", "Notch2"]
     ax = plt.gca()
     fig, plots = plt.subplots(len(sortedParalogs), sharey=True)
     plt.yticks((0, 1, 2, 3, 4))
     plt.suptitle("kmer-DeBruijn ILP and SUN results")
+    maxGap = max(len(x) for x in explodedRawCounts.itervalues())
     for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
-        offset = offsetMap[para]
-        xvals = np.array(range(offset, offset + len(ilpDict[para])), dtype="int")
-        p.axis([offset, offset + len(xvals), 0, 4])
-        p.fill_between(xvals, ilpDict[para], color=colors[i], alpha=0.7)
-        p.set_title("{}".format(para))
+        data = explodedData[para]
+        rawData = explodedRawCounts[para]
+        start = offsetMap[para]
+        stop = start + len(data)
+        xvals = np.array(range(start, stop), dtype="int")
+        rounded_max_gap = int(math.ceil(1.0 * maxGap / 10000) * 10000)
+        p.axis([start, start + rounded_max_gap, 0, 4])
+        x_ticks = range(start, start + rounded_max_gap, 20000)
+        x_ticks.append(stop)
+        p.axes.set_xticks(x_ticks)
+        pp.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
+        p.fill_between(xvals, data, color=colors[i], alpha=0.95)
+        p.fill_between(xvals, rawData, color=rawColor, alpha=0.5)
         if len(unfilteredSunDict[paraMap[para]]) > 0:
             sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
-            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#F17CB0")
-        if len(filteredSunDict[paraMap[para]]) > 0:
-            sunPos, sunVals = zip(*filteredSunDict[paraMap[para]])
-            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#763D56")
+            p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#E83535")
+        p.set_title("{}".format(para))
     fig.subplots_adjust(hspace=0.8)
     plt.savefig(os.path.join(outDir, uuid + ".combined.png"), format="png")
     plt.close()
+
+def explodeResultDict(rd):
+    r = defaultdict(list)
+    for para in rd:
+        for start, span, val in rd[para]:
+            r[para].extend([val] * span)
+    return r

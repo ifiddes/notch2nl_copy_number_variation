@@ -22,6 +22,7 @@ class Block(object):
         # a set of all kmers represented by this block
         self.kmers = set()
         self.reverseKmers = set()
+        self.adjustedCount = None
 
         for kmer in topo_sorted:
             if 'bad' not in subgraph.node[kmer]:
@@ -39,9 +40,7 @@ class Block(object):
         for para_start in start_node["label"].split(", "):
             para, start = para_start.split("_")
             if len(self.kmers) > 0:
-                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start),
-                                                                     lowBound=min_ploidy, upBound=max_ploidy,
-                                                                     cat="Integer")
+                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
             else:
                 self.variables[(para, int(start))] = None
 
@@ -98,8 +97,8 @@ class KmerModel(SequenceGraphLpProblem):
     
     """
 
-    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1,
-                 tightness=1, defaultPloidy=2):
+    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, tightness=1, defaultPloidy=2,
+                tightness2=1):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = {x[0]: [] for x in deBruijnGraph.paralogs}
@@ -109,6 +108,7 @@ class KmerModel(SequenceGraphLpProblem):
         self.breakpointPenalty = breakpointPenalty
         self.dataPenalty = dataPenalty
         self.tightness = tightness
+        self.tightness2 = tightness2
         self.defaultPloidy = defaultPloidy
 
         self.buildBlocks(deBruijnGraph)
@@ -149,6 +149,11 @@ class KmerModel(SequenceGraphLpProblem):
             for para, start, variable in block.variableIter():
                 self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
 
+        #tie the sum of each block to be approximately equal to the number of input sequences subject to tightness2
+        #for block in self.blocks:
+        #    self.constrain_approximately_equal(sum(block.getVariables()), 2.0 * len(block.getVariables()), 
+        #                                        penalty=self.tightness2)
+
     def introduceData(self, kmerCounts, k1mer_size=49):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
@@ -162,9 +167,9 @@ class KmerModel(SequenceGraphLpProblem):
                 count += sum(kmerCounts.get(x, 0) for x in block.getReverseKmers())
 
                 adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
+                block.adjustedCount = adjustedCount
 
-                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()),
-                                                   penalty=self.data_penalty)
+                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)
 
     def reportCopyMap(self):
         """
@@ -202,8 +207,32 @@ class KmerModel(SequenceGraphLpProblem):
         format [position, span, value]
         """
         copy_map = defaultdict(list)
+        prevVar = self.defaultPloidy
         for para in self.block_map:
             offset = self.offset_map[para]
             for start, var, block in self.block_map[para]:
-                copy_map[para].append([start + offset, len(block), pulp.value(var)])
+                if var is not None:
+                    copy_map[para].append([start + offset, len(block), pulp.value(var)])
+                    prevVar = pulp.value(var)
+                else:
+                    copy_map[para].append([start + offset, len(block), prevVar])
         return copy_map
+
+    def reportCondensedNormalizedRawDataMap(self):
+        """
+        Reports the raw counts seen at each variable. This is normalized by the expected value.
+        """
+        copy_map = defaultdict(list)
+        prevVar = 2
+        for para in self.block_map:
+            offset = self.offset_map[para]
+            for start, var, block in self.block_map[para]:
+                if var is not None:
+                    copy_map[para].append([start + offset, len(block), block.adjustedCount / len(block.getVariables())])
+                    prevVar = block.adjustedCount / len(block.getVariables())
+                else:
+                    copy_map[para].append([start + offset, len(block), prevVar])
+        return copy_map
+
+    def getOffsets(self):
+        return self.offset_map

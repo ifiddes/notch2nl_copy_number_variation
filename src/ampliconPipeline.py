@@ -54,9 +54,9 @@ class AmpliconModelWrapper(Target):
             bamPath = os.path.join(self.outDir, self.uuid + ".bam")
         if not os.path.exists(bamPath):
             models.alignQuery(self.fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
-        sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)
+        sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath, doIlp=True)
         sun.run()
-        unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
+        unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath, doIlp=True)
         unfilteredSun.run()
 
 

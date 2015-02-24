@@ -15,10 +15,14 @@ def buildParser():
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "For this model is where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=30.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.65,
+    parser.add_argument("--data_penalty", type=float, default=2.0,
                         help="data penalty used for ILP model.")
+    parser.add_argument("--tightness_penalty", type=float, default=0.05,
+                        help="How closely should a copy number of 2 be enforced?")
+    parser.add_argument("--tightness_penalty_2", type=float, default=0.05,
+                        help="How closely should a total copy number of 10 be enforced?")
     parser.add_argument("--graph", type=str, action=FullPaths,
                         default="./data/graphs/OriginalWithOffsets.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
@@ -31,13 +35,15 @@ class ModelWrapperDownloadedFiles(Target):
     Runs the models on all fastq files found in the output folder. Will generate BAMs and counts as necessary.
     """
 
-    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, graph, saveInter):
+    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, tightnessPenalty, tightnessPenalty2, graph, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.baseOutDir = baseOutDir
         self.outDir = os.path.join(self.baseOutDir, self.uuid)
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
+        self.tightness = tightnessPenalty
+        self.tightnessPenalty2 = tightnessPenalty2
         self.graph = graph
         self.saveInter = saveInter
         # index is a bwa index of the region to be aligned to (one copy of notch2)
@@ -61,17 +67,16 @@ class ModelWrapperDownloadedFiles(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, fastqPath, self.uuid, self.graph,
-                              self.getLocalTempDir(), self.saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness, self.tightnessPenalty2, 
+                            fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.saveInter)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid,
-                            self.outDir)
+        models.combinedPlot(ilp.resultDict, ilp.rawCounts, ilp.offsetMap, unfilteredSun.hg38ResultDict, self.uuid, self.outDir)
 
 
-def buildAnalyses(target, output, breakpoint_penalty, data_penalty, graph, saveInter):
+def buildAnalyses(target, output, breakpoint_penalty, data_penalty, tightness_penalty, tightness_penalty_2, graph, saveInter):
     for uuid in os.listdir(output):
         target.addChildTarget(
-            ModelWrapperDownloadedFiles(uuid, output, breakpoint_penalty, data_penalty, graph, saveInter))
+            ModelWrapperDownloadedFiles(uuid, output, breakpoint_penalty, data_penalty, tightness_penalty, tightness_penalty_2, graph, saveInter))
 
 
 def main():
@@ -81,7 +86,7 @@ def main():
     setLoggingFromOptions(args)
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(
-        args.output, args.breakpoint_penalty, args.data_penalty, args.graph, args.save_intermediate))).startJobTree(
+        args.output, args.breakpoint_penalty, args.data_penalty, args.tightness_penalty, args.tightness_penalty_2, args.graph, args.save_intermediate))).startJobTree(
         args)
 
     if i != 0:

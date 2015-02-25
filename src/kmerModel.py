@@ -220,7 +220,7 @@ class KmerModel(SequenceGraphLpProblem):
 
     def reportCondensedNormalizedRawDataMap(self):
         """
-        Reports the raw counts seen at each variable. This is normalized by the expected value.
+        Reports the raw counts seen at each variable. This is normalized by the number of variables in the block.
         """
         copy_map = defaultdict(list)
         prevVar = 2

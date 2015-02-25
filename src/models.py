@@ -24,7 +24,7 @@ class SunModel(object):
     Runs the SUN model, where alelle fraction at unique sites is used to infer copy number
     """
 
-    def findSiteCoverages(self, bamIn):
+    def findSiteCoverages(self, bamIn, minDepth=50):
         """
         Runs mpileup on each SUN position and finds allele fractions
         """
@@ -33,7 +33,7 @@ class SunModel(object):
         nVals = []
         for pos, (para, ref, alt, hg38_pos) in self.wl.iteritems():
             posStr = "chr1:{0}-{0}".format(pos)
-            pileUp = pysam.mpileup("-q", "10", "-r", posStr, bamIn)
+            pileUp = pysam.mpileup("-q", "20", "-r", posStr, bamIn)
             if len(pileUp) == 0:
                 continue
             pileUpStr = pileUp[0].split()
@@ -41,6 +41,8 @@ class SunModel(object):
                 continue
             pileUpResult = Counter(x.upper() for x in pileUpStr[4] if x in bases)
             if ref not in pileUpResult or alt not in pileUpResult:
+                continue
+            if sum(pileUpResult.itervalues()) < minDepth:
                 continue
             frac = formatRatio(pileUpResult[alt], sum(pileUpResult.values()))
             # invert fraction for Notch2 paralogs
@@ -276,7 +278,7 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
     Generates a final combined plot overlaying both ILP and SUN results.
     """
     colors = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#2ecc71"]
-    rawColor = "#C7C7C7"
+    rawColor = "#969696"
     explodedRawCounts = explodeResultDict(rawCounts)
     explodedData = explodeResultDict(ilpDict)
     # used because the SUN model uses single letter labels
@@ -290,17 +292,17 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
     for i, (p, para) in enumerate(izip(plots, sortedParalogs)):
         data = explodedData[para]
         rawData = explodedRawCounts[para]
+        windowedRawData = [sum(rawData[k:k+300])/300 for k in xrange(0, len(rawData), 300)]
         start = offsetMap[para]
         stop = start + len(data)
-        xvals = np.array(range(start, stop), dtype="int")
         rounded_max_gap = int(math.ceil(1.0 * maxGap / 10000) * 10000)
         p.axis([start, start + rounded_max_gap, 0, 4])
         x_ticks = range(start, start + rounded_max_gap, 20000)
         x_ticks.append(stop)
         p.axes.set_xticks(x_ticks)
-        pp.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
-        p.fill_between(xvals, data, color=colors[i], alpha=0.95)
-        p.fill_between(xvals, rawData, color=rawColor, alpha=0.5)
+        p.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
+        p.fill_between(range(start, stop), data, color=colors[i], alpha=0.95)
+        p.fill_between(range(start, stop, 300), windowedRawData, color=rawColor, alpha=0.5)
         if len(unfilteredSunDict[paraMap[para]]) > 0:
             sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
             p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#E83535")

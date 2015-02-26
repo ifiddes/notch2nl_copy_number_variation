@@ -112,6 +112,7 @@ class KmerModel(SequenceGraphLpProblem):
         self.defaultPloidy = defaultPloidy
 
         self.buildBlocks(deBruijnGraph)
+        self.G = deBruijnGraph
 
     def buildBlocks(self, deBruijnGraph):
         """
@@ -149,6 +150,10 @@ class KmerModel(SequenceGraphLpProblem):
             for para, start, variable in block.variableIter():
                 self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
 
+        #now we force all Notch2 variables to be equal to 2
+        for s, v, b in self.block_map["Notch2"]:
+            self.add_constraint(v == 2)
+
         #tie the sum of each block to be approximately equal to the number of input sequences subject to tightness2
         #for block in self.blocks:
         #    self.constrain_approximately_equal(sum(block.getVariables()), 2.0 * len(block.getVariables()), 
@@ -162,11 +167,11 @@ class KmerModel(SequenceGraphLpProblem):
         """
         for block in self.blocks:
             if len(block) > 0:
-                count = sum(kmerCounts.get(x, 0) for x in block.getKmers())
+                count = sum(kmerCounts.get(x, 0) * self.G.node[x]['weight'] for x in block.getKmers())
                 #don't count reverse kmers if they are a palindrome
-                count += sum(kmerCounts.get(x, 0) for x in block.getReverseKmers() if not x == x[::-1])
+                count += sum(kmerCounts.get(x, 0) * self.G.node[x]['weight'] for x in block.getReverseKmers() if not x == x[::-1])
 
-                adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
+                adjustedCount = count / ( len(block) * self.normalizing )
                 block.adjustedCount = adjustedCount
 
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)

@@ -24,7 +24,7 @@ def buildParser():
     parser.add_argument("--tightness_penalty_2", type=float, default=0.05,
                         help="How closely should a total copy number of 10 be enforced?")
     parser.add_argument("--graph", type=str, action=FullPaths,
-                        default="./data/graphs/OriginalWithOffsets.pickle")
+                        default="./data/graphs/OriginalWithOffsets_WITH_WEIGHTS.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
     return parser

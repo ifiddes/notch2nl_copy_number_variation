@@ -160,11 +160,11 @@ class KmerModel(SequenceGraphLpProblem):
         representing the results of kmer counting a WGS dataset (format seq:count)
 
         """
-
         for block in self.blocks:
             if len(block) > 0:
                 count = sum(kmerCounts.get(x, 0) for x in block.getKmers())
-                count += sum(kmerCounts.get(x, 0) for x in block.getReverseKmers())
+                #don't count reverse kmers if they are a palindrome
+                count += sum(kmerCounts.get(x, 0) for x in block.getReverseKmers() if not x == x[::-1])
 
                 adjustedCount = 2.0 * count / ( len(block) * self.normalizing )
                 block.adjustedCount = adjustedCount

@@ -19,7 +19,7 @@ def buildParser():
                         help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=2.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.05,
+    parser.add_argument("--tightness_penalty", type=float, default=0.7,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--tightness_penalty_2", type=float, default=0.05,
                         help="How closely should a total copy number of 10 be enforced?")

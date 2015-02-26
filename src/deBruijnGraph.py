@@ -126,7 +126,6 @@ class DeBruijnGraph(object):
 
         self.is_pruned = True
 
-
     def weaklyConnectedSubgraphs(self):
         """
         Yields weakly connected subgraphs and their topolgical sort.

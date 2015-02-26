@@ -185,6 +185,7 @@ class IlpModel(object):
         self.saveCounts = saveCounts
 
     def wigglePlots(self):
+        explodedRawCounts = explodeResultDict(self.rawCounts)
         with open(os.path.join(self.outDir, "tracks", self.uuid + ".ILP.wig"), "w") as outf:
             outf.write(
                 "track type=wiggle_0 name={} color=35,125,191 autoScale=off visibility=full alwaysZero=on yLineMark=2 "
@@ -198,9 +199,12 @@ class IlpModel(object):
                 "track type=wiggle_0 name={} color=63,153,158 autoScale=off visibility=full alwaysZero=on yLineMark=2 "
                 "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n".format(self.uuid))
             for para in self.rawCounts:
-                for start, span, val in self.rawCounts[para]:
-                    outf.write("variableStep chrom=chr1 span={}\n".format(span))
-                    outf.write("{} {}\n".format(start, val))
+                rawData = explodedRawCounts[para]
+                windowedRawData = [sum(rawData[k:k+300])/300 for k in xrange(0, len(rawData), 300)]
+                start = self.offsetMap[para]
+                outf.write("fixedStep chrom=chr1 start={} step=300 span=300\n".format(start))
+                for x in windowedRawData:
+                    outf.write("{}\n".format(x))
 
     def run(self):
         if self.saveCounts is not True:
@@ -257,8 +261,7 @@ def alignQuery(fastqPath, remappedBamPath, tempDir, uuid, index):
     """
     # align the extracted reads to the index
     sortedBamPath = os.path.join(tempDir, "{}.sorted".format(uuid))
-    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index,
-                                                                                       fastqPath, sortedBamPath))
+    system("bwa mem -v 1 {} {} | samtools view -F 4 -bS - | samtools sort - {}".format(index, fastqPath, sortedBamPath))
     # samtools appends .bam to sorted bam files
     sortedBamPath += ".bam"
     header = {"HD": {"VN": "1.3"}, "SQ": [{"LN": 248956422, "SN": "chr1"}]}

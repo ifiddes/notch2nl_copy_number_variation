@@ -92,10 +92,11 @@ class DeBruijnGraph(object):
             self.reverseKmers.add(reverseComplement(km1L))
 
         # need to count the last kmer also
-        self.G.node[km1R]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
-        self.G.node[km1R]["count"] += 1
-        self.kmers.add(km1R)
-        self.reverseKmers.add(reverseComplement(km1R))
+        if "N" not in km1R:
+            self.G.node[km1R]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
+            self.G.node[km1R]["count"] += 1
+            self.kmers.add(km1R)
+            self.reverseKmers.add(reverseComplement(km1R))
 
         self.has_sequences = True
 
@@ -148,3 +149,18 @@ class DeBruijnGraph(object):
                 self.G.node[k1mer]['bad'] = True
             elif reverseComplement(k1mer) in self.reverseKmers:
                 self.G.node[k1mer]['bad'] = True
+
+    def weightKmers(self, weightDict):
+        """
+        Takes a python dictionary mapping k1mers to an empirically derived
+        weight. Applies a weight tag to each k1mer in the graph.
+        """
+        for k1mer, weight in weightDict.iteritems():
+            if k1mer in self.kmers:
+                self.G.node[k1mer]['weight'] = weight
+            elif reverseComplement(k1mer) in self.reverseKmers:
+                self.G.node[k1mer]['weight'] = weight
+
+        for n in self.G.nodes():
+            if 'weight' not in self.G.node[n]:
+                self.G.node[n]['weight'] = 2

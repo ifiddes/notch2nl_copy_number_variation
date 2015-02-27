@@ -167,9 +167,9 @@ class KmerModel(SequenceGraphLpProblem):
         """
         for block in self.blocks:
             if len(block) > 0:
-                count = sum(kmerCounts.get(x, 0) * self.G.node[x]['weight'] for x in block.getKmers())
+                count = sum(kmerCounts.get(x, 0) * self.G.G.node[x]['weight'] for x in block.getKmers())
                 #don't count reverse kmers if they are a palindrome
-                count += sum(kmerCounts.get(x, 0) * self.G.node[x]['weight'] for x in block.getReverseKmers() if not x == x[::-1])
+                count += sum(kmerCounts.get(x, 0) * self.G.G.node[reverseComplement(x)]['weight'] for x in block.getReverseKmers() if not x == x[::-1])
 
                 adjustedCount = count / ( len(block) * self.normalizing )
                 block.adjustedCount = adjustedCount

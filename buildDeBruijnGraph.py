@@ -24,6 +24,8 @@ def parse_args(args):
         help="kmer size. Default=50")
     parser.add_argument("--bad_kmers", "-b", type=argparse.FileType("r"),
         help="Text file of kmers that are to be flagged as bad. See findBadKmers.py")
+    parser.add_argument("--weights", "-w", type=str,
+        help="pickled python dictionary representing empirically derived per-kmer weights.")
     return parser.parse_args()
 
 
@@ -39,11 +41,15 @@ def main(args):
     for name, seq in fastaRead(args.normalizing):
         G.addNormalizing(name, seq)
 
-    G.finishBuild()
-    G.pruneGraph()
-
     if args.bad_kmers is not None:
         G.flagNodes(args.bad_kmers)
+
+    if args.weights is not None:
+        with open(args.weights) as f:
+            G.weightKmers(pickle.load(f))
+
+    G.finishBuild()
+    G.pruneGraph()
     
     pickle.dump(G, args.out)
 

@@ -228,7 +228,7 @@ class IlpModel(object):
                     dataCounts[rc] = int(count.translate(None, rm))
         # adjust ILP penalties for coverage in this sequencing run
         normalizing = ((1.0 * sum(dataCounts.get(x, 0) for x in G.normalizingKmers) + sum(
-            dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) / len(G.normalizingKmers))
+            dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) /  len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
         P.introduceData(dataCounts)
         P.solve()
@@ -304,8 +304,8 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
         x_ticks.append(stop)
         p.axes.set_xticks(x_ticks)
         p.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
-        p.fill_between(range(start, stop), data, color=colors[i], alpha=0.95)
-        p.fill_between(range(start, stop, 300), windowedRawData, color=rawColor, alpha=0.5)
+        p.fill_between(range(start, stop), data, color=colors[i], alpha=0.8)
+        p.plot(range(start, stop, 300), windowedRawData, color=rawColor, alpha=0.8, linewidth=1.5)
         if len(unfilteredSunDict[paraMap[para]]) > 0:
             sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
             p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#E83535")

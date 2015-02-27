@@ -10,6 +10,7 @@ With contributions from Dent Earl
 import os
 import argparse
 import gzip
+import cPickle as pickle
 import numpy as np
 
 

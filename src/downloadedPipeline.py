@@ -15,16 +15,16 @@ def buildParser():
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "For this model is where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=30.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=40.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=2.0,
+    parser.add_argument("--data_penalty", type=float, default=4.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.7,
+    parser.add_argument("--tightness_penalty", type=float, default=2.0,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--tightness_penalty_2", type=float, default=0.05,
                         help="How closely should a total copy number of 10 be enforced?")
     parser.add_argument("--graph", type=str, action=FullPaths,
-                        default="./data/graphs/OriginalWithOffsets_WITH_WEIGHTS.pickle")
+                        default="./data/graphs/hydin_normalizing_graph.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
     return parser

@@ -91,7 +91,7 @@ class SunModel(object):
                         "viewLimits=0:4 yLineOnOff=on maxHeightPixels=100:75:50\n")
             with open(path, "w") as outf:
                 outf.write(bedHeader.format(self.uuid + "_" + para))
-                for pos, frac in resultDict[para]:
+                for pos, frac in sorted(resultDict[para], key = lambda x:x[0]):
                     outf.write("\t".join(map(str, ["chr1", pos, pos + 1, frac])) + "\n")
 
     def makeHg38Bedgraphs(self, resultDict):

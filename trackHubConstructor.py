@@ -35,7 +35,7 @@ def startHub(d, name):
         os.mkdir(os.path.join(d, "hg19"))
     with open(os.path.join(d, "hg38", "Notch2NL.html"), "w") as outf:
          outf.write("Notch2NL {}\n".format(name))
-    with open(os.path.join(d, "hg39", "Notch2NL.html"), "w") as outf:
+    with open(os.path.join(d, "hg19", "Notch2NL.html"), "w") as outf:
          outf.write("Notch2NL {}\n".format(name))        
 
 def buildTrackDb(d, paths):

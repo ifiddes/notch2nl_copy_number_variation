@@ -13,7 +13,7 @@ from pylab import setp
 
 from src.kmerModel import KmerModel
 from src.sunIlpModel import SunIlpModel
-from lib.general_lib import formatRatio, rejectOutliers, opener
+from lib.general_lib import formatRatio, rejectOutliers, opener, isPalindrome
 
 from jobTree.scriptTree.target import Target
 from jobTree.src.bioio import system, logger, reverseComplement, fastaRead
@@ -217,15 +217,17 @@ class IlpModel(object):
         dataCounts = Counter()
         normalizingCounts = 0
         for count, seq in fastaRead(countFile):
-            rc = reverseComplement(seq)
+            pali = isPalindrome(seq)
             if seq in G.kmers:
-                dataCounts[seq] += int(count)
-            if rc[::-1] != rc and rc in G.kmers:
                 dataCounts[seq] += int(count)
             if seq in G.normalizingKmers:
                 normalizing += int(count)
-            if rc[::-1] != rc and rc in G.normalizingKmers:
-                normalizing += int(count)
+            if pali is False:
+                rc = reverseComplement(seq)
+                if rc in G.kmers:
+                    dataCounts[seq] += int(count)
+                if rc in G.normalizingKmers:
+                    normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
         P.introduceData(dataCounts)

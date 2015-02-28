@@ -92,3 +92,10 @@ def rejectOutliers(data, m = 2.):
         return data[s < m]
     else:
         return data
+
+
+def isPalindrome(seq):
+    if seq[::-1] == seq:
+        return True
+    else:
+        return False

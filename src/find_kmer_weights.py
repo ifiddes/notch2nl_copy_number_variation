@@ -5,11 +5,11 @@ Expects that there are jellyfish Counts files in the output directory structure.
 import sys, os, argparse
 import cPickle as pickle
 from sonLib.bioio import fastaRead
-from lib.general_lib import DirType, FileType
+from lib.general_lib import DirType, FileType, isPalindrome
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from collections import Counter
-from jobTree.src.bioio import logger, setLoggingFromOptions
+from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement
 
 #hard coded allele fractions seen in 281 TCGA individuals
 avg_c_frac = 1.0 * (2 * 250 + 1 * 18) / 281
@@ -40,15 +40,17 @@ class buildDict(Target):
     def run(self):
         G = pickle.load(open(self.graph))
         for count, seq in fastaRead(self.path):
-            rc = reverseComplement(seq)
+            pali = isPalindrome(seq)
             if seq in G.kmers:
-                self.counts[seq] += int(count)
-            if rc[::-1] != seq and rc in G.kmers:
-                self.counts[seq] += int(count)
-            if seq in G.normalizingKmers :
-                self.normalizingCounts[seq] += int(count)
-            if rc[::-1] != seq and rc in G.normalizingKmers:
-                self.normalizingCounts[seq] += int(count)
+                dataCounts[seq] += int(count)
+            if seq in G.normalizingKmers:
+                normalizing += int(count)
+            if pali is False:
+                rc = reverseComplement(seq)
+                if rc in G.kmers:
+                    dataCounts[seq] += int(count)
+                if rc in G.normalizingKmers:
+                    normalizing += int(count)
         normalizing = 1.0 * sum(self.normalizingCounts.values()) / len(G.normalizingKmers)
         for kmer in self.counts:
             self.counts[kmer] /= normalizing

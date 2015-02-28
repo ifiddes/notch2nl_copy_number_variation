@@ -215,7 +215,7 @@ class IlpModel(object):
             runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid)
         G = pickle.load(open(self.graph, "rb"))
         dataCounts = Counter()
-        normalizingCounts = 0
+        normalizing = 0
         for count, seq in fastaRead(countFile):
             pali = isPalindrome(seq)
             if seq in G.kmers:

@@ -14,7 +14,7 @@ from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement
 #hard coded allele fractions seen in 281 TCGA individuals
 avg_c_frac = 1.0 * (2 * 250 + 1 * 18) / 281
 avg_d_frac = 1.0 * (2 * 130 + 1 * 121) / 281
-avg_frac_dict = {"A":2.0, "B":2.0, "C":avg_c_frac, "D":avg_d_frac, "2":2.0}
+avg_frac_dict = {"Notch2NL-A":2.0, "Notch2NL-B":2.0, "Notch2NL-C":avg_c_frac, "Notch2NL-D":avg_d_frac, "Notch2":2.0}
 
 def build_parser():
     """
@@ -31,7 +31,7 @@ class buildDict(Target):
     def __init__(self, uuid, path, out_dir, graph):
         Target.__init__(self)
         self.counts = Counter()
-        self.normalizingCounts = Counter()
+        self.normalizing = 0
         self.uuid = uuid
         self.path = path
         self.out_dir = out_dir
@@ -42,18 +42,18 @@ class buildDict(Target):
         for count, seq in fastaRead(self.path):
             pali = isPalindrome(seq)
             if seq in G.kmers:
-                dataCounts[seq] += int(count)
+                self.counts[seq] += int(count)
             if seq in G.normalizingKmers:
-                normalizing += int(count)
+                self.normalizing += int(count)
             if pali is False:
                 rc = reverseComplement(seq)
                 if rc in G.kmers:
-                    dataCounts[seq] += int(count)
+                    self.counts[seq] += int(count)
                 if rc in G.normalizingKmers:
-                    normalizing += int(count)
-        normalizing = 1.0 * sum(self.normalizingCounts.values()) / len(G.normalizingKmers)
+                    self.normalizing += int(count)
+        self.normalizing = 1.0 * self.normalizing / len(G.normalizingKmers)
         for kmer in self.counts:
-            self.counts[kmer] /= normalizing
+            self.counts[kmer] /= self.normalizing
         pickle.dump(self.counts, open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"), "w"))        
 
 
@@ -76,7 +76,7 @@ class Merge(Target):
         G = pickle.load(open(self.graph))
         weights = {}
         for kmer in G.G.nodes():
-            input_sequences = G.G.node[k]['positions'].keys()
+            input_sequences = G.G.node[kmer]['positions'].keys()
             weights[kmer] = (2.0 * counts[kmer])  / (len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences))
         
         with open(os.path.join(self.out_dir, "weights.pickle"), "w") as outf:

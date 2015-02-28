@@ -28,18 +28,30 @@ def build_parser():
     return parser
 
 class buildDict(Target):
-    def __init__(self, uuid, path, out_dir, kmers):
+    def __init__(self, uuid, path, out_dir, graph):
         Target.__init__(self)
         self.counts = Counter()
+        self.normalizingCounts = Counter()
         self.uuid = uuid
         self.path = path
         self.out_dir = out_dir
-        self.kmers = kmers
+        self.graph = graph
 
     def run(self):
-        for count, kmer in fastaRead(self.path):
-            if kmer in self.kmers:
-                self.counts[kmer] += int(count)
+        G = pickle.load(open(self.graph))
+        for count, seq in fastaRead(self.path):
+            rc = reverseComplement(seq)
+            if seq in G.kmers:
+                self.counts[seq] += int(count)
+            if rc[::-1] != seq and rc in G.kmers:
+                self.counts[seq] += int(count)
+            if seq in G.normalizingKmers :
+                self.normalizingCounts[seq] += int(count)
+            if rc[::-1] != seq and rc in G.normalizingKmers:
+                self.normalizingCounts[seq] += int(count)
+        normalizing = 1.0 * sum(self.normalizingCounts.values()) / len(G.normalizingKmers)
+        for kmer in self.counts:
+            self.counts[kmer] /= normalizing
         pickle.dump(self.counts, open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"), "w"))        
 
 
@@ -59,23 +71,24 @@ class Merge(Target):
         with open(os.path.join(self.out_dir, "combined_counts.pickle"), "w") as outf:
             pickle.dump(counts, outf)
 
-        G = pickle.load(self.graph)
+        G = pickle.load(open(self.graph))
         weights = {}
         for kmer in G.G.nodes():
-            input_sequences = [x.split("_")[0][-1] for x in G.G.node[kmer]['label'].split(", ")]
-            population_counts = counts[kmer]
-            weight = (1.0 * population_counts) / (len(count_files) * sum(avg_frac_dict[x] for x in input_sequences))
-            weights[kmer] = weight / (len(count_files) * 2)
+            input_sequences = G.G.node[k]['positions'].keys()
+            weights[kmer] = (2.0 * counts[kmer])  / (len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences))
+        
         with open(os.path.join(self.out_dir, "weights.pickle"), "w") as outf:
             pickle.dump(weights, outf)
+        
         G.weightKmers(weights)
+        
         with open(self.new_graph, "w") as outf:
             pickle.dump(G, outf)        
 
 
-def buildDictWrapper(target, kmers, count_files, out_dir, graph, new_graph):
+def buildDictWrapper(target, count_files, out_dir, graph, new_graph):
     for uuid, path in count_files:
-        target.addChildTarget(buildDict(uuid, path, out_dir, kmers))
+        target.addChildTarget(buildDict(uuid, path, out_dir, graph))
     target.setFollowOnTarget(Merge(count_files, out_dir, graph, new_graph))
 
 
@@ -90,10 +103,7 @@ def main():
 
     count_files = [[x, os.path.join(args.data_dir, x, x + ".Counts.fa")] for x in os.listdir(args.data_dir)]
 
-    G = pickle.load(open(args.graph))
-    kmers = G.kmers.union(G.reverseKmers)
-
-    i = Stack(Target.makeTargetFn(buildDictWrapper, args=(kmers, count_files, args.out_dir, args.graph, args.new_graph))).startJobTree(args)
+    i = Stack(Target.makeTargetFn(buildDictWrapper, args=(count_files, args.out_dir, args.graph, args.new_graph))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

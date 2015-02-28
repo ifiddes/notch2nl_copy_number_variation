@@ -37,12 +37,12 @@ class Block(object):
         start_node = subgraph.node[topo_sorted[0]]
 
         #build variables for each instance
-        for para_start in start_node["label"].split(", "):
-            para, start = para_start.split("_")
-            if len(self.kmers) > 0:
-                self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
-            else:
-                self.variables[(para, int(start))] = None
+        for para in start_node["positions"]:
+            for start in start_node["positions"][para]:
+                if len(self.kmers) > 0:
+                    self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
+                else:
+                    self.variables[(para, int(start))] = None
 
     def __len__(self):
         return len(self.kmers)
@@ -168,10 +168,7 @@ class KmerModel(SequenceGraphLpProblem):
         for block in self.blocks:
             if len(block) > 0:
                 count = sum(kmerCounts.get(x, 0) * self.G.G.node[x]['weight'] for x in block.getKmers())
-                #don't count reverse kmers if they are a palindrome
-                count += sum(kmerCounts.get(x, 0) * self.G.G.node[reverseComplement(x)]['weight'] for x in block.getReverseKmers() if not x == x[::-1])
-
-                adjustedCount = count / ( len(block) * self.normalizing )
+                adjustedCount = (1.0 *count) / (len(block) * self.normalizing)
                 block.adjustedCount = adjustedCount
 
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)

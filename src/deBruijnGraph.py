@@ -1,6 +1,6 @@
 import networkx as nx
 import string
-from collections import Counter
+from collections import Counter, defaultdict
 from jobTree.src.bioio import reverseComplement
 
 
@@ -32,9 +32,7 @@ class DeBruijnGraph(object):
         self.is_pruned = False
         self.paralogs = []
         self.kmers = set()
-        self.reverseKmers = set()
         self.normalizingKmers = set()
-        self.reverseNormalizingKmers = set()
 
     def nodes(self):
         return self.G.nodes()
@@ -56,7 +54,6 @@ class DeBruijnGraph(object):
             if "N" in s:
                 continue
             self.normalizingKmers.add(s)
-            self.reverseNormalizingKmers.add(reverseComplement(s))
 
 
     def addSequences(self, name, offset, seq):
@@ -67,43 +64,40 @@ class DeBruijnGraph(object):
         """
         k = self.kmer_size - 1
         self.paralogs.append([name, offset])
-        # TODO - handle names longer than 1 character by truncating
-        paralogNodeCount = Counter()
-
-        for i in xrange(len(seq) - k):
-            # left and right k-1mers
-            km1L, km1R = seq[i:i + k].upper(), seq[i + 1:i + k + 1].upper()
-            if "N" in km1L or "N" in km1R:
+        paralogPosition = Counter()
+        prev = ""
+        for i in xrange(len(seq) - k + 1):
+            k1mer = seq[i:i + k].upper()
+            if "N" in prev or "N" in k1mer:
+                paralogPosition[name] += 1
                 continue
-
-            if self.G.has_node(km1L) is not True:
-                self.G.add_node(km1L, label=["{}_{}".format(name, paralogNodeCount[name])], count=1)
-                paralogNodeCount[name] += 1
             else:
-                self.G.node[km1L]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
-                self.G.node[km1L]["count"] += 1
-                paralogNodeCount[name] += 1
-
-            if self.G.has_node(km1R) is not True:
-                self.G.add_node(km1R, label=[], count=0)
-
-            self.G.add_edge(km1L, km1R)
-            self.kmers.add(km1L)
-            self.reverseKmers.add(reverseComplement(km1L))
-
-        # need to count the last kmer also
-        if "N" not in km1R:
-            self.G.node[km1R]["label"].append("{}_{}".format(name, paralogNodeCount[name]))
-            self.G.node[km1R]["count"] += 1
-            self.kmers.add(km1R)
-            self.reverseKmers.add(reverseComplement(km1R))
+                if self.G.has_node(k1mer) is not True:
+                    self.G.add_node(k1mer, count=1, positions=defaultdict(list))
+                    self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
+                    paralogPosition[name] += 1
+                else:
+                    self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
+                    self.G.node[k1mer]['count'] += 1
+                    paralogPosition[name] += 1
+                if prev is not "":
+                    self.G.add_edge(prev, k1mer)
+                self.kmers.add(k1mer)
+            prev = k1mer
 
         self.has_sequences = True
 
-    def finishBuild(self):
-        for node in self.G.nodes():
-            self.G.node[node]["label"] = ", ".join(sorted(self.G.node[node]["label"]))
+    def finishBuild(self, graphviz=False):
+        if graphviz is True:
+            for node in self.G.nodes():
+                l = node + "\\n" + " - ".join([": ".join([y, ", ".join([str(x) for x in self.G.node[node]['positions'][y]])]) for y in self.G.node[node]['positions']]) + "\\ncount: " + str(self.G.node[node]["count"])
+                self.G.node[node]["label"] = l
+
         self.paralogs = sorted(self.paralogs, key=lambda x: x[0])
+        for n in self.G.nodes():
+                self.G.node[n]['weight'] = 2
+
+        assert len(self.kmers.intersection(self.normalizingKmers)) == 0
 
     def pruneGraph(self):
         """
@@ -113,17 +107,18 @@ class DeBruijnGraph(object):
 
         """
         for n in self.G.nodes_iter():
-            if len(self.G.in_edges(n)) > 1:
-                for n1, n2 in self.G.in_edges(n):
-                    self.G.remove_edge(n1, n2)
 
-            if len(self.G.out_edges(n)) > 1:
+                if len(self.G.in_edges(n)) > 1:
+                    for n1, n2 in self.G.in_edges(n):
+                        self.G.remove_edge(n1, n2)
+
+                if len(self.G.out_edges(n)) > 1:
+                    for n1, n2 in self.G.out_edges(n):
+                        self.G.remove_edge(n1, n2)
+
                 for n1, n2 in self.G.out_edges(n):
-                    self.G.remove_edge(n1, n2)
-
-            for n1, n2 in self.G.out_edges(n):
-                if self.G.node[n1]["count"] != self.G.node[n2]["count"]:
-                    self.G.remove_edge(n1, n2)
+                    if self.G.node[n1]["count"] != self.G.node[n2]["count"]:
+                        self.G.remove_edge(n1, n2)
 
         self.is_pruned = True
 
@@ -147,8 +142,6 @@ class DeBruijnGraph(object):
             k1mer = k1mer.rstrip()
             if k1mer in self.kmers:
                 self.G.node[k1mer]['bad'] = True
-            elif reverseComplement(k1mer) in self.reverseKmers:
-                self.G.node[k1mer]['bad'] = True
 
     def weightKmers(self, weightDict):
         """
@@ -158,9 +151,3 @@ class DeBruijnGraph(object):
         for k1mer, weight in weightDict.iteritems():
             if k1mer in self.kmers:
                 self.G.node[k1mer]['weight'] = weight
-            elif reverseComplement(k1mer) in self.reverseKmers:
-                self.G.node[k1mer]['weight'] = weight
-
-        for n in self.G.nodes():
-            if 'weight' not in self.G.node[n]:
-                self.G.node[n]['weight'] = 2

@@ -16,7 +16,7 @@ from src.sunIlpModel import SunIlpModel
 from lib.general_lib import formatRatio, rejectOutliers, opener
 
 from jobTree.scriptTree.target import Target
-from jobTree.src.bioio import system, logger, reverseComplement
+from jobTree.src.bioio import system, logger, reverseComplement, fastaRead
 
 
 class SunModel(object):
@@ -214,21 +214,19 @@ class IlpModel(object):
         if not os.path.exists(countFile):
             runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid)
         G = pickle.load(open(self.graph, "rb"))
-        with opener(countFile) as f:
-            # using string translate has been shown to be faster than using any other means
-            # of removing characters from a string
-            rm = ">\n"
-            dataCounts = {}
-            for count, seq in izip(*[f] * 2):
-                seq = seq.translate(None, rm)
-                rc = reverseComplement(seq)
-                if seq in G.kmers or seq in G.normalizingKmers:
-                    dataCounts[seq] = int(count.translate(None, rm))
-                elif rc in G.reverseKmers or rc in G.reverseNormalizingKmers:
-                    dataCounts[rc] = int(count.translate(None, rm))
-        # adjust ILP penalties for coverage in this sequencing run
-        normalizing = ((1.0 * sum(dataCounts.get(x, 0) for x in G.normalizingKmers) + sum(
-            dataCounts.get(x, 0) for x in G.reverseNormalizingKmers) ) /  len(G.normalizingKmers))
+        dataCounts = Counter()
+        normalizingCounts = 0
+        for count, seq in fastaRead(countFile):
+            rc = reverseComplement(seq)
+            if seq in G.kmers:
+                dataCounts[seq] += int(count)
+            if rc[::-1] != rc and rc in G.kmers:
+                dataCounts[seq] += int(count)
+            if seq in G.normalizingKmers:
+                normalizing += int(count)
+            if rc[::-1] != rc and rc in G.normalizingKmers:
+                normalizing += int(count)
+        normalizing /= (1.0 * len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
         P.introduceData(dataCounts)
         P.solve()

@@ -185,7 +185,7 @@ class IlpModel(object):
         self.saveCounts = saveCounts
 
     def wigglePlots(self):
-        explodedRawCounts = explodeResultDict(self.rawCounts)
+        explodedRawCounts = explodeResultDict(self.rawCounts, self.offsetMap)
         with open(os.path.join(self.outDir, "tracks", self.uuid + ".ILP.wig"), "w") as outf:
             outf.write(
                 "track type=wiggle_0 name={} color=35,125,191 autoScale=off visibility=full alwaysZero=on yLineMark=2 "
@@ -282,7 +282,6 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
     Generates a final combined plot overlaying both ILP and SUN results.
     """
     colors = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#2ecc71"]
-    rawColor = "#969696"
     explodedRawCounts = explodeResultDict(rawCounts, offsetMap)
     explodedData = explodeResultDict(ilpDict, offsetMap)
     # used because the SUN model uses single letter labels
@@ -306,10 +305,12 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
         p.axes.set_xticks(x_ticks)
         p.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
         p.fill_between(range(start, stop), data, color=colors[i], alpha=0.8)
-        p.plot(range(start, stop, 300), windowedRawData, color=rawColor, alpha=0.8, linewidth=1.5)
+        p.plot(range(start, stop, 300), windowedRawData, alpha=0.8, linewidth=1.5)
         if len(unfilteredSunDict[paraMap[para]]) > 0:
             sunPos, sunVals = zip(*unfilteredSunDict[paraMap[para]])
             p.vlines(np.asarray(sunPos), np.zeros(len(sunPos)), sunVals, color="#E83535")
+        for i in range(1, 4):
+            p.axhline(y=i, ls="--", lw=0.8)
         p.set_title("{}".format(para))
     fig.subplots_adjust(hspace=0.8)
     plt.savefig(os.path.join(outDir, uuid + ".combined.png"), format="png")

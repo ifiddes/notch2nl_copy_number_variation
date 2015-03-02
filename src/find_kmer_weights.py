@@ -72,7 +72,8 @@ class Merge(Target):
         weights = {}
         for kmer in G.G.nodes():
             input_sequences = G.G.node[kmer]['positions'].keys()
-            weights[kmer] = (2.0 * counts[kmer])  / (len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences))
+            #weights[kmer] = (1.0 * counts[kmer])  / (len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences))
+            weights[kmer] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (counts[kmer] + 1))
         
         with open(os.path.join(self.out_dir, "weights.pickle"), "w") as outf:
             pickle.dump(weights, outf)
@@ -83,8 +84,8 @@ class Merge(Target):
             pickle.dump(G, outf)    
 
     def dict_iter(self):
-        for self.uuid, self.path in self.count_files:
-            yield pickle.load(open(os.path.join(self.out_dir, self.uuid + ".counts.pickle")))
+        for uuid, path in self.count_files:
+            yield pickle.load(open(os.path.join(self.out_dir, uuid + ".counts.pickle")))
 
 
 def buildDictWrapper(target, count_files, out_dir, graph, new_graph):

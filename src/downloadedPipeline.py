@@ -12,19 +12,19 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", type=DirType, default="./output_unmasked/",
+    parser.add_argument("--output", "-o", type=DirType, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=40.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
                         help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=4.0,
                         help="data penalty used for ILP model.")
     parser.add_argument("--tightness_penalty", type=float, default=2.0,
                         help="How closely should a copy number of 2 be enforced?")
-    parser.add_argument("--tightness_penalty_2", type=float, default=0.05,
+    parser.add_argument("--tightness_penalty_2", type=float, default=2.0,
                         help="How closely should a total copy number of 10 be enforced?")
     parser.add_argument("--graph", type=FileType,
-                        default="./data/graphs/masked_graph_old_normalizing_with_weights.pickle")
+                        default="./data/new_graphs/masked_graph_inverse_weighted_new_normalize.pickle")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
     return parser

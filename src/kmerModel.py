@@ -168,7 +168,7 @@ class KmerModel(SequenceGraphLpProblem):
         for block in self.blocks:
             if len(block) > 0:
                 count = sum(kmerCounts.get(x, 0) * self.G.G.node[x]['weight'] for x in block.getKmers())
-                adjustedCount = (1.0 *count) / (len(block) * self.normalizing)
+                adjustedCount = (1.0 * count) / (len(block) * self.normalizing)
                 block.adjustedCount = adjustedCount
 
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)

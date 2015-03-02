@@ -13,7 +13,7 @@ from pylab import setp
 
 from src.kmerModel import KmerModel
 from src.sunIlpModel import SunIlpModel
-from lib.general_lib import formatRatio, rejectOutliers, opener, isPalindrome
+from lib.general_lib import formatRatio, rejectOutliers
 
 from jobTree.scriptTree.target import Target
 from jobTree.src.bioio import system, logger, reverseComplement, fastaRead
@@ -216,17 +216,15 @@ class IlpModel(object):
         G = pickle.load(open(self.graph, "rb"))
         dataCounts = Counter()
         normalizing = 0
-        for count, seq in fastaRead(countFile):
-            pali = isPalindrome(seq)
-            if seq in G.kmers:
-                dataCounts[seq] += int(count)
-            if seq in G.normalizingKmers:
-                normalizing += int(count)
-            if pali is False:
+        with open(countFile) as f:
+            rm = ">\n"
+            for count, seq in izip(*[f] * 2):
+                seq = seq.translate(None, rm)
+                count = int(count.translate(None, rm))
                 rc = reverseComplement(seq)
-                if rc in G.kmers:
+                if seq in G.kmers or rc in G.kmers:
                     dataCounts[seq] += int(count)
-                if rc in G.normalizingKmers:
+                elif seq in G.normalizingKmers:
                     normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
@@ -239,8 +237,11 @@ class IlpModel(object):
 
 
 def runJellyfish(localTempDir, countFile, fastqFile, uuid):
+    """
+    Runs jellyfish. -C flag is set to count both strands together.
+    """
     jfFile = os.path.join(localTempDir, uuid + ".jf")
-    system("jellyfish count -m 49 -s 300M -o {} {}".format(jfFile, fastqFile))
+    system("jellyfish count -C -m 49 -s 300M -o {} {}".format(jfFile, fastqFile))
     system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
 
 
@@ -282,8 +283,8 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
     """
     colors = ["#9b59b6", "#3498db", "#e74c3c", "#34495e", "#2ecc71"]
     rawColor = "#969696"
-    explodedRawCounts = explodeResultDict(rawCounts)
-    explodedData = explodeResultDict(ilpDict)
+    explodedRawCounts = explodeResultDict(rawCounts, offsetMap)
+    explodedData = explodeResultDict(ilpDict, offsetMap)
     # used because the SUN model uses single letter labels
     paraMap = {"Notch2NL-A": "A", "Notch2NL-B": "B", "Notch2NL-C": "C", "Notch2NL-D": "D", "Notch2": "N"}
     sortedParalogs = ["Notch2NL-A", "Notch2NL-B", "Notch2NL-C", "Notch2NL-D", "Notch2"]
@@ -314,9 +315,11 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
     plt.savefig(os.path.join(outDir, uuid + ".combined.png"), format="png")
     plt.close()
 
-def explodeResultDict(rd):
+def explodeResultDict(rd, offsetMap):
     r = defaultdict(list)
     for para in rd:
+        prevStart = offsetMap[para]
         for start, span, val in rd[para]:
-            r[para].extend([val] * span)
+            r[para].extend([val] * (start - prevStart))
+            prevStart = start
     return r

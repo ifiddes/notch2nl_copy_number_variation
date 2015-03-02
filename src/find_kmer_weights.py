@@ -10,11 +10,10 @@ from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from collections import Counter
 from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement
+from itertools import izip
 
-#hard coded allele fractions seen in 281 TCGA individuals
-avg_c_frac = 1.0 * (2 * 250 + 1 * 18) / 281
-avg_d_frac = 1.0 * (2 * 130 + 1 * 121) / 281
-avg_frac_dict = {"Notch2NL-A":2.0, "Notch2NL-B":2.0, "Notch2NL-C":avg_c_frac, "Notch2NL-D":avg_d_frac, "Notch2":2.0}
+#hard coded allele fractions seen in 201 TCGA individuals
+avg_frac_dict = {"Notch2NL-A":2.0, "Notch2NL-B":2.0, "Notch2NL-C":1.843, "Notch2NL-D":0.980, "Notch2":2.0}
 
 def build_parser():
     """
@@ -39,22 +38,20 @@ class buildDict(Target):
 
     def run(self):
         G = pickle.load(open(self.graph))
-        for count, seq in fastaRead(self.path):
-            pali = isPalindrome(seq)
-            if seq in G.kmers:
-                self.counts[seq] += int(count)
-            if seq in G.normalizingKmers:
-                self.normalizing += int(count)
-            if pali is False:
+        with open(self.path) as f:
+            rm = ">\n"
+            for count, seq in izip(*[f] * 2):
+                seq = seq.translate(None, rm)
+                count = int(count.translate(None, rm))
                 rc = reverseComplement(seq)
-                if rc in G.kmers:
+                if seq in G.kmers or rc in G.kmers:
                     self.counts[seq] += int(count)
-                if rc in G.normalizingKmers:
+                elif seq in G.normalizingKmers:
                     self.normalizing += int(count)
-        self.normalizing = 1.0 * self.normalizing / len(G.normalizingKmers)
+        self.normalizing /= (1.0 * len(G.normalizingKmers))
         for kmer in self.counts:
             self.counts[kmer] /= self.normalizing
-        pickle.dump(self.counts, open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"), "w"))        
+        pickle.dump(self.counts, open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"), "w"))
 
 
 class Merge(Target):
@@ -67,9 +64,7 @@ class Merge(Target):
 
     def run(self):
         dicts = []
-        for self.uuid, self.path in self.count_files:
-            dicts.append(pickle.load(open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"))))
-        counts = reduce(lambda x,y: x+y, dicts)
+        counts = reduce(lambda x, y: x + y, self.dict_iter())
         with open(os.path.join(self.out_dir, "combined_counts.pickle"), "w") as outf:
             pickle.dump(counts, outf)
 
@@ -85,7 +80,11 @@ class Merge(Target):
         G.weightKmers(weights)
         
         with open(self.new_graph, "w") as outf:
-            pickle.dump(G, outf)        
+            pickle.dump(G, outf)    
+
+    def dict_iter(self):
+        for self.uuid, self.path in self.count_files:
+            yield pickle.load(open(os.path.join(self.out_dir, self.uuid + ".counts.pickle")))
 
 
 def buildDictWrapper(target, count_files, out_dir, graph, new_graph):

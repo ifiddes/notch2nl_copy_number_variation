@@ -21,28 +21,28 @@ class Block(object):
     def __init__(self, subgraph, topo_sorted, min_ploidy=0, max_ploidy=4):
         # a set of all kmers represented by this block
         self.kmers = set()
-        self.reverseKmers = set()
         self.adjustedCount = None
 
         for kmer in topo_sorted:
             if 'bad' not in subgraph.node[kmer]:
                 self.kmers.add(kmer)
-                self.reverseKmers.add(reverseComplement(kmer))
 
         # one variable for each instance of a input sequence
         self.variables = {}
 
         #since each node has the same set of sequences, and we have a topological sort, we can 
-        #pull down the positions of the first node only
+        #pull down the positions of the first node as the genomic start position
         start_node = subgraph.node[topo_sorted[0]]
 
         #build variables for each instance
         for para in start_node["positions"]:
             for start in start_node["positions"][para]:
                 if len(self.kmers) > 0:
-                    self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
+                    self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
+                                   lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
                 else:
                     self.variables[(para, int(start))] = None
+
 
     def __len__(self):
         return len(self.kmers)

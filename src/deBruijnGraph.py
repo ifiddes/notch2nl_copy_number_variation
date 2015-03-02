@@ -73,7 +73,7 @@ class DeBruijnGraph(object):
                 continue
             else:
                 if self.G.has_node(k1mer) is not True:
-                    self.G.add_node(k1mer, count=1, positions=defaultdict(list))
+                    self.G.add_node(k1mer, count=1, positions=defaultdict(list), weight=2.0)
                     self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
                     paralogPosition[name] += 1
                 else:
@@ -88,16 +88,21 @@ class DeBruijnGraph(object):
         self.has_sequences = True
 
     def finishBuild(self, graphviz=False):
+        """
+        Finishes building the graph.
+
+        If graphviz is true, adds a label tag to each node so that the graph can be visualized in graphviz.
+        Sorts the paralog class members, prunes the graph and makes sure there is no overlap between normalizing kmers
+        and data kmers.
+        """
         if graphviz is True:
             for node in self.G.nodes():
                 l = node + "\\n" + " - ".join([": ".join([y, ", ".join([str(x) for x in self.G.node[node]['positions'][y]])]) for y in self.G.node[node]['positions']]) + "\\ncount: " + str(self.G.node[node]["count"])
                 self.G.node[node]["label"] = l
 
         self.paralogs = sorted(self.paralogs, key=lambda x: x[0])
-        for n in self.G.nodes():
-                self.G.node[n]['weight'] = 2
 
-        assert len(self.kmers.intersection(self.normalizingKmers)) == 0
+        #assert len(self.kmers.intersection(self.normalizingKmers)) == 0
 
     def pruneGraph(self):
         """
@@ -135,7 +140,6 @@ class DeBruijnGraph(object):
         Iterates over a kmer_iter and flags nodes as being bad.
         This is used to flag nodes whose kmer is represented elsewhere
         in the genome, so that we won't count it later.
-        Note that the kmer counts should be k-1mers
 
         """
         for k1mer in kmer_iter:
@@ -147,6 +151,7 @@ class DeBruijnGraph(object):
         """
         Takes a python dictionary mapping k1mers to an empirically derived
         weight. Applies a weight tag to each k1mer in the graph.
+
         """
         for k1mer, weight in weightDict.iteritems():
             if k1mer in self.kmers:

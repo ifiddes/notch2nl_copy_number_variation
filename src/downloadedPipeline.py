@@ -15,16 +15,14 @@ def buildParser():
     parser.add_argument("--output", "-o", type=DirType, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=4.0,
+    parser.add_argument("--data_penalty", type=float, default=5.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=2.0,
+    parser.add_argument("--tightness_penalty", type=float, default=0.5,
                         help="How closely should a copy number of 2 be enforced?")
-    parser.add_argument("--tightness_penalty_2", type=float, default=2.0,
-                        help="How closely should a total copy number of 10 be enforced?")
     parser.add_argument("--graph", type=FileType,
-                        default="./data/new_graphs/masked_new_normalize.pickle")
+                        default="./data/new_graphs/masked_graph_inverse_weighted_new_normalize.pickle")
     parser.add_argument("--kmer_size", type=int, default=49, help="kmer size")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
@@ -36,7 +34,7 @@ class ModelWrapperDownloadedFiles(Target):
     Runs the models on all fastq files found in the output folder. Will generate BAMs and counts as necessary.
     """
 
-    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, tightnessPenalty, tightnessPenalty2, graph, kmerSize, saveInter):
+    def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, tightnessPenalty, graph, kmerSize, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.baseOutDir = baseOutDir
@@ -44,7 +42,6 @@ class ModelWrapperDownloadedFiles(Target):
         self.bpPenalty = bpPenalty
         self.dataPenalty = dataPenalty
         self.tightness = tightnessPenalty
-        self.tightnessPenalty2 = tightnessPenalty2
         self.graph = graph
         self.kmerSize = kmerSize
         self.saveInter = saveInter
@@ -69,16 +66,17 @@ class ModelWrapperDownloadedFiles(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness, self.tightnessPenalty2, 
-                            fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.kmerSize, self.saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness,
+                            fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.kmerSize, self.saveInter, 
+                            sun.C, sun.D)
         ilp.run()
         models.combinedPlot(ilp.resultDict, ilp.rawCounts, ilp.offsetMap, unfilteredSun.hg38ResultDict, self.uuid, self.outDir)
 
 
-def buildAnalyses(target, output, breakpoint_penalty, data_penalty, tightness_penalty, tightness_penalty_2, graph, kmerSize, saveInter):
+def buildAnalyses(target, output, breakpoint_penalty, data_penalty, tightness_penalty, graph, kmerSize, saveInter):
     for uuid in os.listdir(output):
         target.addChildTarget(
-            ModelWrapperDownloadedFiles(uuid, output, breakpoint_penalty, data_penalty, tightness_penalty, tightness_penalty_2, graph, kmerSize, saveInter))
+            ModelWrapperDownloadedFiles(uuid, output, breakpoint_penalty, data_penalty, tightness_penalty, graph, kmerSize, saveInter))
 
 
 def main():
@@ -88,7 +86,7 @@ def main():
     setLoggingFromOptions(args)
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(
-        args.output, args.breakpoint_penalty, args.data_penalty, args.tightness_penalty, args.tightness_penalty_2, args.graph, args.kmer_size, args.save_intermediate))).startJobTree(
+        args.output, args.breakpoint_penalty, args.data_penalty, args.tightness_penalty, args.graph, args.kmer_size, args.save_intermediate))).startJobTree(
         args)
 
     if i != 0:

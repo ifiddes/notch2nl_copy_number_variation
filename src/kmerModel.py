@@ -96,9 +96,8 @@ class KmerModel(SequenceGraphLpProblem):
     tightness: How much do we want to favor copy number of defaultPloidy?
     
     """
-
-    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, tightness=1, defaultPloidy=2,
-                tightness2=1):
+    def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, tightness=1, inferC=None, 
+                 inferD=None, defaultPloidy=2):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = {x[0]: [] for x in deBruijnGraph.paralogs}
@@ -108,7 +107,8 @@ class KmerModel(SequenceGraphLpProblem):
         self.breakpointPenalty = breakpointPenalty
         self.dataPenalty = dataPenalty
         self.tightness = tightness
-        self.tightness2 = tightness2
+        self.inferC = inferC
+        self.inferD = inferD
         self.defaultPloidy = defaultPloidy
 
         self.buildBlocks(deBruijnGraph)
@@ -154,10 +154,15 @@ class KmerModel(SequenceGraphLpProblem):
         for s, v, b in self.block_map["Notch2"]:
             self.add_constraint(v == 2)
 
-        #tie the sum of each block to be approximately equal to the number of input sequences subject to tightness2
-        #for block in self.blocks:
-        #    self.constrain_approximately_equal(sum(block.getVariables()), 2.0 * len(block.getVariables()), 
-        #                                        penalty=self.tightness2)
+        #if we have previously inferred C/D copy numbers, set those values
+        if self.inferC is not None:
+            for s, v, b in self.block_map["Notch2NL-C"]:
+                self.add_constraint(v == self.inferC)
+
+        if self.inferD is not None:
+            for s, v, b in self.block_map["Notch2NL-D"]:
+                self.add_constraint(v == self.inferD)
+
 
     def introduceData(self, kmerCounts, k1mer_size=49):
         """

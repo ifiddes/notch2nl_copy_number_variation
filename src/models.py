@@ -13,7 +13,7 @@ from pylab import setp
 
 from src.kmerModel import KmerModel
 from src.sunIlpModel import SunIlpModel
-from lib.general_lib import formatRatio, rejectOutliers
+from lib.general_lib import formatRatio
 
 from jobTree.scriptTree.target import Target
 from jobTree.src.bioio import system, logger, reverseComplement, fastaRead
@@ -60,7 +60,7 @@ class SunModel(object):
         """
         The values for Notch2NL-A-D are normalized by Notch2. Notch2 does not have CNV.
         """
-        return np.mean(rejectOutliers(np.asarray(r)))
+        return np.mean(np.asarray(r))
 
     def plotHistograms(self, resultDict):
         path = os.path.join(self.outDir, "{}.{}.png".format(self.uuid, self.__class__.__name__))
@@ -124,10 +124,18 @@ class SunModel(object):
                 mid = pos + windowSize / 2
                 outf.write("variableStep chrom=chr1 span={}\n{} {}\n".format(stepSize, mid, val))
 
+    def inferCopyNumber(self):
+        """
+        Infer copy number of Notch2NL-C and Notch2NL-D
+
+        """
+        C = [x[1] for x in self.resultDict["C"]]
+        D = [x[1] for x in self.resultDict["D"]]
+        return int(round(sum(C) / len(C), 0)), int(round(sum(D) / len(D), 0))
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
-        # plot the results
+        self.C, self.D = self.inferCopyNumber()
         # self.plotHistograms(self.resultDict)
         self.makeHg19Bedgraphs(self.resultDict)
         self.hg38ResultDict = self.convertResultDict()
@@ -171,8 +179,8 @@ class FilteredSunModel(SunModel):
 
 
 class IlpModel(object):
-    def __init__(self, outDir, bpPenalty, dataPenalty, tightness, tightness2, fastqFile, uuid, graph, localTempDir,
-                 kmerSize, saveCounts=False):
+    def __init__(self, outDir, bpPenalty, dataPenalty, tightness, fastqFile, uuid, graph, localTempDir,
+                 kmerSize, saveCounts=False, inferC=None, inferD=None):
         self.outDir = outDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
@@ -181,9 +189,10 @@ class IlpModel(object):
         self.graph = graph
         self.localTempDir = localTempDir
         self.tightness = tightness
-        self.tightness2 = tightness2
         self.saveCounts = saveCounts
         self.kmerSize = kmerSize
+        self.inferC = inferC
+        self.inferD = inferD
 
     def wigglePlots(self):
         explodedRawCounts = explodeResultDict(self.rawCounts, self.offsetMap)
@@ -228,7 +237,7 @@ class IlpModel(object):
                 elif seq in G.normalizingKmers:
                     normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))
-        P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.tightness2)
+        P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.inferC, self.inferD)
         P.introduceData(dataCounts)
         P.solve()
         self.resultDict = P.reportCondensedCopyMap()

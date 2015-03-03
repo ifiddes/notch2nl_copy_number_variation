@@ -72,7 +72,6 @@ class Merge(Target):
         weights = {}
         for kmer in G.G.nodes():
             input_sequences = G.G.node[kmer]['positions'].keys()
-            #weights[kmer] = (1.0 * counts[kmer])  / (len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences))
             weights[kmer] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (counts[kmer] + 1))
         
         with open(os.path.join(self.out_dir, "weights.pickle"), "w") as outf:

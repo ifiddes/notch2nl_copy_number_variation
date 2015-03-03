@@ -172,7 +172,7 @@ class FilteredSunModel(SunModel):
 
 class IlpModel(object):
     def __init__(self, outDir, bpPenalty, dataPenalty, tightness, tightness2, fastqFile, uuid, graph, localTempDir,
-                 saveCounts=False):
+                 kmerSize, saveCounts=False):
         self.outDir = outDir
         self.uuid = uuid
         self.bpPenalty = bpPenalty
@@ -183,6 +183,7 @@ class IlpModel(object):
         self.tightness = tightness
         self.tightness2 = tightness2
         self.saveCounts = saveCounts
+        self.kmerSize = kmerSize
 
     def wigglePlots(self):
         explodedRawCounts = explodeResultDict(self.rawCounts, self.offsetMap)
@@ -212,7 +213,7 @@ class IlpModel(object):
         else:
             countFile = os.path.join(self.outDir, self.uuid + ".Counts.fa")
         if not os.path.exists(countFile):
-            runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid)
+            runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid, self.kmerSize)
         G = pickle.load(open(self.graph, "rb"))
         dataCounts = Counter()
         normalizing = 0
@@ -236,12 +237,12 @@ class IlpModel(object):
         self.wigglePlots()
 
 
-def runJellyfish(localTempDir, countFile, fastqFile, uuid):
+def runJellyfish(localTempDir, countFile, fastqFile, uuid, kmerSize=49):
     """
     Runs jellyfish. -C flag is set to count both strands together.
     """
     jfFile = os.path.join(localTempDir, uuid + ".jf")
-    system("jellyfish count -C -m 49 -s 300M -o {} {}".format(jfFile, fastqFile))
+    system("jellyfish count -C -m {} -s 300M -o {} {}".format(kmerSize, jfFile, fastqFile))
     system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
 
 

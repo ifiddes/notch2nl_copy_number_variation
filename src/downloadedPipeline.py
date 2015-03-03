@@ -15,11 +15,11 @@ def buildParser():
     parser.add_argument("--output", "-o", type=DirType, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=20.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=5.0,
+    parser.add_argument("--data_penalty", type=float, default=4.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.5,
+    parser.add_argument("--tightness_penalty", type=float, default=0.25,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--graph", type=FileType,
                         default="./data/new_graphs/masked_graph_inverse_weighted_new_normalize.pickle")
@@ -33,7 +33,6 @@ class ModelWrapperDownloadedFiles(Target):
     """
     Runs the models on all fastq files found in the output folder. Will generate BAMs and counts as necessary.
     """
-
     def __init__(self, uuid, baseOutDir, bpPenalty, dataPenalty, tightnessPenalty, graph, kmerSize, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]

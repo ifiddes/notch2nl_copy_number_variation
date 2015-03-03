@@ -12,7 +12,7 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", type=DirType, default="./output_2/",
+    parser.add_argument("--output", "-o", type=DirType, default="./output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
     parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
@@ -58,9 +58,9 @@ class ModelWrapperDownloadedFiles(Target):
         if not os.path.exists(fastqPath):
             raise RuntimeError("fastq not in fastqPath. Schema is <uuid>.fastq")
         if self.saveInter is not True:
-            bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".remapped.sorted.bam")
+            bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".bam")
         else:
-            bamPath = os.path.join(self.outDir, self.uuid + ".remapped.sorted.bam")
+            bamPath = os.path.join(self.outDir, self.uuid + ".bam")
         if not os.path.exists(bamPath):
             models.alignQuery(fastqPath, bamPath, self.getLocalTempDir(), self.uuid, self.index)
         sun = models.FilteredSunModel(self.outDir, self.uuid, bamPath)

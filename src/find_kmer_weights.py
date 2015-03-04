@@ -8,9 +8,10 @@ from sonLib.bioio import fastaRead
 from lib.general_lib import DirType, FileType, isPalindrome
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
-from collections import Counter
-from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement
+from collections import Counter, defaultdict
+from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement, system
 from itertools import izip
+import numpy as np
 
 #hard coded allele fractions seen in 201 TCGA individuals
 avg_frac_dict = {"Notch2NL-A":2.0, "Notch2NL-B":2.0, "Notch2NL-C":1.843, "Notch2NL-D":0.980, "Notch2":2.0}
@@ -44,10 +45,12 @@ class buildDict(Target):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
                 rc = reverseComplement(seq)
-                if seq in G.kmers or rc in G.kmers:
-                    self.counts[seq] += int(count)
-                elif seq in G.normalizingKmers:
-                    self.normalizing += int(count)
+                if seq in G.kmers:
+                    self.counts[seq] += count
+                elif rc in G.kmers:
+                    self.counts[rc] += count
+                elif seq in G.normalizingKmers or rc in G.normalizingKmers:
+                    self.normalizing += count
         self.normalizing /= (1.0 * len(G.normalizingKmers))
         for kmer in self.counts:
             self.counts[kmer] /= self.normalizing
@@ -63,24 +66,57 @@ class Merge(Target):
         self.new_graph = new_graph
 
     def run(self):
-        dicts = []
-        counts = reduce(lambda x, y: x + y, self.dict_iter())
-        with open(os.path.join(self.out_dir, "combined_counts.pickle"), "w") as outf:
-            pickle.dump(counts, outf)
+        counts = defaultdict(list)
+        for d in self.dict_iter():
+            for x, y in d.iteritems():
+                counts[x].append(y)
 
         G = pickle.load(open(self.graph))
-        weights = {}
-        for kmer in G.G.nodes():
-            input_sequences = G.G.node[kmer]['positions'].keys()
-            weights[kmer] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (counts[kmer] + 1))
+        kmers = sorted(G.kmers)
+
+        added_counts = {}
+        for k in kmers:
+            added_counts[k] = sum(counts[k])
+
+        for k in kmers:
+            if added_counts[k] == 0:
+                G.G.node[k]['bad'] = True
+                del added_counts[k]
+
+        filtered_kmers = sorted(added_counts.iterkeys())
+
+        with open(os.path.join(self.out_dir, "combined_counts.txt"), "w") as outf:
+            for k in filtered_kmers:
+                outf.write("{}\t{}\n".format(k, added_counts[k]))
+
+        variances = {}
+        for k in filtered_kmers:
+            variances[k] = np.var(np.asarray(counts[k]))
+
+        with open(os.path.join(self.out_dir, "variances.txt"), "w") as outf:
+            for k in filtered_kmers:
+                outf.write("{}\t{}\n".format(k, variances[k]))
         
-        with open(os.path.join(self.out_dir, "weights.pickle"), "w") as outf:
-            pickle.dump(weights, outf)
+        weights = {}
+        for k in filtered_kmers:
+            input_sequences = G.G.node[k]['positions'].keys()
+            weights[k] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1))
+
+        for k in filtered_kmers:
+            if weights[k] > 4.0:
+                G.G.node[k]['bad'] = True
+                del weights[k]
+
+        with open(os.path.join(self.out_dir, "weights.txt"), "w") as outf:
+            for k in filtered_kmers:
+                outf.write("{}\t{}\n".format(k, weights[k]))
         
         G.weightKmers(weights)
         
         with open(self.new_graph, "w") as outf:
-            pickle.dump(G, outf)    
+            pickle.dump(G, outf)
+
+        system("Rscript src/weights.R {} {} {} {} {}".format(os.path.join(self.out_dir, "combined_counts.txt"), os.path.join(self.out_dir, "weights.txt"), os.path.join(self.out_dir, "variances.txt"), len(self.count_files), "weighting_metrics.pdf"))
 
     def dict_iter(self):
         for uuid, path in self.count_files:

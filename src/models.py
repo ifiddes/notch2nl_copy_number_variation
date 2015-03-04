@@ -232,8 +232,10 @@ class IlpModel(object):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
                 rc = reverseComplement(seq)
-                if seq in G.kmers or rc in G.kmers:
+                if seq in G.kmers:
                     dataCounts[seq] += int(count)
+                elif rc in G.kmers:
+                    dataCounts[rc] += int(count)
                 elif seq in G.normalizingKmers or rc in G.normalizingKmers:
                     normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))

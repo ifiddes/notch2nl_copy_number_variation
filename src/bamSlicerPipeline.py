@@ -27,27 +27,21 @@ def buildParser():
                         help="pickled query file produced by cgquery_handler.py. Default is ./queries/queries.pickle")
     parser.add_argument("--output", "-o", type=DirType, action=FullPaths, default="./output/",
                         help="base output directory that results will be written to. Default is ./output/")
-    parser.add_argument("--breakpoint_penalty", type=float, default=30.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.65,
+    parser.add_argument("--data_penalty", type=float, default=4.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.5,
+    parser.add_argument("--tightness_penalty", type=float, default=0.25,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--key_file", type=str, action=FullPaths,
                         default="/inside/home/cwilks/haussl_new.key",
                         help="The key file to download protected data from cghub.")
     parser.add_argument("--graph", type=str, action=FullPaths,
-                        default="./data/graphs/OriginalWithOffsets.pickle")
+                        default="./data/graphs/masked.pickle")
+    parser.add_argument("--kmer_size", type=int, default=49, help="kmer size")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
     return parser
-
-
-def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, saveInter):
-    logger.info("Starting to build analyses")
-    for uuid, queryString in queries.iteritems():
-        target.addChildTarget(SlicerModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness,
-                                                 keyFile, graph, saveInter))
 
 
 class SlicerModelWrapper(Target):
@@ -59,7 +53,7 @@ class SlicerModelWrapper(Target):
     Finally, the results of both models is used to build a combined plot.
     """
 
-    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, saveInter):
+    def __init__(self, uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, kmerSize, saveInter):
         Target.__init__(self)
         self.uuid = uuid[:8]
         self.queryString = queryString
@@ -71,6 +65,7 @@ class SlicerModelWrapper(Target):
         self.graph = graph
         self.saveInter = saveInter
         self.key = open(keyFile).readline().rstrip()
+        self.kmerSize = kmerSize
         self.saveInter = saveInter
         # index is a bwa index of the region to be aligned to (one copy of notch2)
         self.index = "./data/SUN_data/hs_n2.unmasked.fa"
@@ -92,11 +87,19 @@ class SlicerModelWrapper(Target):
         sun.run()
         unfilteredSun = models.UnfilteredSunModel(self.outDir, self.uuid, bamPath)
         unfilteredSun.run()
-        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness, fastqPath, self.uuid,
-                              self.graph, self.getLocalTempDir(), self.saveInter)
+        ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness,
+                            fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.kmerSize, self.saveInter, 
+                            sun.C, sun.D)
         ilp.run()
         models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid,
                             self.outDir)
+
+
+def buildAnalyses(target, queries, baseOutDir, bpPenalty, dataPenalty, tightness, keyFile, graph, kmerSize, saveInter):
+    logger.info("Starting to build analyses")
+    for uuid, queryString in queries.iteritems():
+        target.addChildTarget(SlicerModelWrapper(uuid, queryString, baseOutDir, bpPenalty, dataPenalty, tightness,
+                                                 keyFile, graph, kmerSize, saveInter))
 
 
 def main():
@@ -108,7 +111,7 @@ def main():
 
     i = Stack(Target.makeTargetFn(buildAnalyses, args=(queries, args.output, args.breakpoint_penalty,
                                                        args.data_penalty, args.tightness_penalty, args.key_file,
-                                                       args.graph, args.save_intermediate))).startJobTree(args)
+                                                       args.graph, args.kmer_size, args.save_intermediate))).startJobTree(args)
 
     if i != 0:
         raise RuntimeError("Got failed jobs")

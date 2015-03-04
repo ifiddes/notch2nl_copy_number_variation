@@ -5,11 +5,11 @@ Expects that there are jellyfish Counts files in the output directory structure.
 import sys, os, argparse
 import cPickle as pickle
 from sonLib.bioio import fastaRead
-from lib.general_lib import DirType, FileType, isPalindrome
+from lib.general_lib import DirType, FileType
 from jobTree.scriptTree.target import Target
 from jobTree.scriptTree.stack import Stack
 from collections import Counter, defaultdict
-from jobTree.src.bioio import logger, setLoggingFromOptions, reverseComplement, system
+from jobTree.src.bioio import logger, setLoggingFromOptions, system
 from itertools import izip
 import numpy as np
 
@@ -44,11 +44,8 @@ class buildDict(Target):
             for count, seq in izip(*[f] * 2):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
-                rc = reverseComplement(seq)
                 if seq in G.kmers:
                     self.counts[seq] += count
-                elif rc in G.kmers:
-                    self.counts[rc] += count
                 elif seq in G.normalizingKmers or rc in G.normalizingKmers:
                     self.normalizing += count
         self.normalizing /= (1.0 * len(G.normalizingKmers))
@@ -78,10 +75,12 @@ class Merge(Target):
         for k in kmers:
             added_counts[k] = sum(counts[k])
 
-        for k in kmers:
-            if added_counts[k] == 0:
-                G.G.node[k]['bad'] = True
-                del added_counts[k]
+        with open(os.path.join(self.out_dir, "bad_kmers.fasta"), "w") as outf:
+            for k in kmers:
+                if added_counts[k] == 0:
+                    G.G.node[k]['bad'] = True
+                    del added_counts[k]
+                    outf.write(">{0}\n{0}\n".format(k))
 
         filtered_kmers = sorted(added_counts.iterkeys())
 
@@ -102,13 +101,15 @@ class Merge(Target):
             input_sequences = G.G.node[k]['positions'].keys()
             weights[k] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1))
 
-        for k in filtered_kmers:
-            if weights[k] > 4.0:
-                G.G.node[k]['bad'] = True
-                del weights[k]
+        with open(os.path.join(self.out_dir, "high_weight_bad_kmers.fasta"), "w") as outf:
+            for k in filtered_kmers:
+                if weights[k] > 4.0:
+                    G.G.node[k]['bad'] = True
+                    del weights[k]
+                    outf.write(">{0}\n{0}\n".format(k))
 
         with open(os.path.join(self.out_dir, "weights.txt"), "w") as outf:
-            for k in filtered_kmers:
+            for k in weights:
                 outf.write("{}\t{}\n".format(k, weights[k]))
         
         G.weightKmers(weights)

@@ -1,4 +1,4 @@
-import sys, os, pysam, vcf, string, gzip, math
+import sys, os, pysam, vcf, math
 import cPickle as pickle
 from itertools import izip
 from collections import defaultdict, Counter
@@ -16,7 +16,7 @@ from src.sunIlpModel import SunIlpModel
 from lib.general_lib import formatRatio
 
 from jobTree.scriptTree.target import Target
-from jobTree.src.bioio import system, logger, reverseComplement, fastaRead
+from jobTree.src.bioio import system, logger, fastaRead
 
 
 class SunModel(object):
@@ -24,7 +24,7 @@ class SunModel(object):
     Runs the SUN model, where alelle fraction at unique sites is used to infer copy number
     """
 
-    def findSiteCoverages(self, bamIn, minDepth=50):
+    def findSiteCoverages(self, bamIn, minDepth=40):
         """
         Runs mpileup on each SUN position and finds allele fractions
         """
@@ -131,7 +131,15 @@ class SunModel(object):
         """
         C = [x[1] for x in self.resultDict["C"]]
         D = [x[1] for x in self.resultDict["D"]]
-        return int(round(sum(C) / len(C), 0)), int(round(sum(D) / len(D), 0))
+        if len(D) != 0:
+            D = int(round(sum(D) / len(D), 0))
+        else:
+            D = 0
+        if len(C) != 0:
+            C = int(round(sum(C) / len(C), 0))
+        else:
+            C = 0
+        return C, D
 
     def run(self):
         self.resultDict = self.findSiteCoverages(self.bamPath)
@@ -231,11 +239,8 @@ class IlpModel(object):
             for count, seq in izip(*[f] * 2):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
-                rc = reverseComplement(seq)
                 if seq in G.kmers:
                     dataCounts[seq] += int(count)
-                elif rc in G.kmers:
-                    dataCounts[rc] += int(count)
                 elif seq in G.normalizingKmers or rc in G.normalizingKmers:
                     normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))
@@ -254,7 +259,7 @@ def runJellyfish(localTempDir, countFile, fastqFile, uuid, kmerSize=49):
     """
     jfFile = os.path.join(localTempDir, uuid + ".jf")
     system("jellyfish count -C -m {} -s 300M -o {} {}".format(kmerSize, jfFile, fastqFile))
-    system("jellyfish dump -L 2 {} > {}".format(jfFile, countFile))
+    system("jellyfish dump {} > {}".format(jfFile, countFile))
 
 
 def downloadQuery(fastqPath, tempDir, key, queryString, uuid):

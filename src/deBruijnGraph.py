@@ -67,13 +67,16 @@ class DeBruijnGraph(object):
         paralogPosition = Counter()
         prev = ""
         for i in xrange(len(seq) - k + 1):
-            k1mer = seq[i:i + k].upper()
+            #jellyfish -C stores kmer as first lexographically
+            k1mer_fwd = seq[i:i + k].upper()
+            k1mer_rev = reverseComplement(k1mer_fwd)
+            k1mer = sorted([k1mer_fwd, k1mer_rev])[0]
             if "N" in prev or "N" in k1mer:
                 paralogPosition[name] += 1
                 continue
             else:
                 if self.G.has_node(k1mer) is not True:
-                    self.G.add_node(k1mer, count=1, positions=defaultdict(list), weight=2.0)
+                    self.G.add_node(k1mer, count=1, positions=defaultdict(list), weight=1.0)
                     self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
                     paralogPosition[name] += 1
                 else:

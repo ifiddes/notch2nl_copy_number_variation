@@ -91,7 +91,7 @@ class SlicerModelWrapper(Target):
                             fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.kmerSize, self.saveInter, 
                             sun.C, sun.D)
         ilp.run()
-        models.combinedPlot(ilp.resultDict, ilp.offsetMap, sun.hg38ResultDict, unfilteredSun.hg38ResultDict, self.uuid,
+        models.combinedPlot(ilp.resultDict, ilp.rawCounts, ilp.offsetMap, unfilteredSun.hg38ResultDict, self.uuid,
                             self.outDir)
 
 

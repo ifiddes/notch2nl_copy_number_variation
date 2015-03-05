@@ -241,7 +241,7 @@ class IlpModel(object):
                 count = int(count.translate(None, rm))
                 if seq in G.kmers:
                     dataCounts[seq] += int(count)
-                elif seq in G.normalizingKmers or rc in G.normalizingKmers:
+                elif seq in G.normalizingKmers:
                     normalizing += int(count)
         normalizing /= (1.0 * len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.inferC, self.inferD)

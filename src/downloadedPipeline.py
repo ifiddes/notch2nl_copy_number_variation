@@ -22,7 +22,7 @@ def buildParser():
     parser.add_argument("--tightness_penalty", type=float, default=0.25,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--graph", type=FileType,
-                        default="./data/new_graphs/masked_graph_inverse_weighted_new_normalize.pickle")
+                        default="./data/graphs/masked_graph_inverse_weighted_new_normalize.pickle")
     parser.add_argument("--kmer_size", type=int, default=49, help="kmer size")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")

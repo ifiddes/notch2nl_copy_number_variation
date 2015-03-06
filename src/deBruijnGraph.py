@@ -120,15 +120,23 @@ class DeBruijnGraph(object):
         1) adjacent nodes have multiple non self-loop edges
         2) adjacent nodes have different counts
         """
-        self_loops = self.G.selfloop_edges()
         to_remove = []
         for n in self.G.nodes():
+            kmer = removeLabel(n)
             adjacency_edges = [(a, b) for a, b in self.G.edges(n) if removeLabel(a) != removeLabel(b)]
-            if len(adjacency_edges) > 2:
+            if len(adjacency_edges) > 1:
+                # remove all adjacency edges from nodes with more than one adjacency edge
                 to_remove.extend(adjacency_edges)
+                # remove the adjacency edge if it touches a node with a different count
+            else:
+                # networkx always reports this node first, right?
+                a, b = adjacency_edges[0]
+                assert a == n
+                if self.G.node[a]['count'] != self.G.node[b]['count']:
+                    to_remove.extend(adjacency_edges)
         for a, b in to_remove:
             if self.G.has_edge(a, b) and a != b:
-                # edges may appear more than once in to_remove, this is easier than pruning it
+                # don't remove self loop edges
                 self.G.remove_edge(a, b)  
 
     def finishBuild(self, graphviz=False):

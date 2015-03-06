@@ -1,5 +1,6 @@
 import pulp
 from collections import Counter, defaultdict
+import networkx as nx
 from itertools import izip
 from math import log, exp
 
@@ -25,7 +26,20 @@ class Block(object):
         self.kmers = set()
         self.adjustedCount = None
         
-         
+        # find the start and stop nodes for this subgraph
+        start_stop = []
+        for n in subgraph.nodes():
+            if len(subgraph.edges(n)) == 1:
+                start_stop.append(n)
+        if len(start_stop) == 1:
+            # this subgraph starts and stops on the same node due to a self loop
+            start = stop = start_stop
+        else:
+            
+
+        # find the shortest path between the start and stop nodes
+        path = nx.shortest_path()
+
 
 
         startPositions = defaultdict(list)

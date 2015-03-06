@@ -12,17 +12,17 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", type=DirType, default="./output/",
+    parser.add_argument("--output", "-o", type=DirType, default="./output_test/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=25.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=30.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=4.0,
+    parser.add_argument("--data_penalty", type=float, default=3.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.25,
+    parser.add_argument("--tightness_penalty", type=float, default=0.5,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--graph", type=FileType,
-                        default="./data/new_graphs/masked_graph_inverse_weighted_new_normalize.pickle")
+                        default="./data/fix_orientation/masked.pickle")
     parser.add_argument("--kmer_size", type=int, default=49, help="kmer size")
     parser.add_argument("--save_intermediate", action="store_true",
                         help="Should we store the intermediates for debugging?")
@@ -67,7 +67,8 @@ class ModelWrapperDownloadedFiles(Target):
         unfilteredSun.run()
         ilp = models.IlpModel(self.outDir, self.bpPenalty, self.dataPenalty, self.tightness,
                             fastqPath, self.uuid, self.graph, self.getLocalTempDir(), self.kmerSize, self.saveInter, 
-                            sun.C, sun.D)
+                            None, None)
+                            #sun.C, sun.D)
         ilp.run()
         models.combinedPlot(ilp.resultDict, ilp.rawCounts, ilp.offsetMap, unfilteredSun.hg38ResultDict, self.uuid, self.outDir)
 

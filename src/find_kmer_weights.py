@@ -39,16 +39,17 @@ class buildDict(Target):
 
     def run(self):
         G = pickle.load(open(self.graph))
+        normalizing = 0
         with open(self.path) as f:
             rm = ">\n"
             for count, seq in izip(*[f] * 2):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
-                if seq in G.kmers:
+                if seq in G.strandlessKmers:
                     self.counts[seq] += count
-                elif seq in G.normalizingKmers or rc in G.normalizingKmers:
+                elif seq in G.normalizingKmers:
                     self.normalizing += count
-        self.normalizing /= (1.0 * len(G.normalizingKmers))
+        self.normalizing /= len(G.normalizingKmers)
         for kmer in self.counts:
             self.counts[kmer] /= self.normalizing
         pickle.dump(self.counts, open(os.path.join(self.out_dir, self.uuid + ".counts.pickle"), "w"))
@@ -69,7 +70,7 @@ class Merge(Target):
                 counts[x].append(y)
 
         G = pickle.load(open(self.graph))
-        kmers = sorted(G.kmers)
+        kmers = G.kmers
 
         added_counts = {}
         for k in kmers:
@@ -86,7 +87,7 @@ class Merge(Target):
 
         with open(os.path.join(self.out_dir, "combined_counts.txt"), "w") as outf:
             for k in filtered_kmers:
-                outf.write("{}\t{}\n".format(k, added_counts[k]))
+                outf.write("{}\t{}\n".format(k, G.weights[k] * added_counts[k]))
 
         variances = {}
         for k in filtered_kmers:
@@ -99,7 +100,7 @@ class Merge(Target):
         weights = {}
         for k in filtered_kmers:
             input_sequences = G.G.node[k]['positions'].keys()
-            weights[k] = (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1))
+            weights[k] = G.weights[k] * (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1))
 
         with open(os.path.join(self.out_dir, "high_weight_bad_kmers.fasta"), "w") as outf:
             for k in filtered_kmers:
@@ -123,6 +124,13 @@ class Merge(Target):
         for uuid, path in self.count_files:
             yield pickle.load(open(os.path.join(self.out_dir, uuid + ".counts.pickle")))
 
+
+def strandless(k):
+    """
+    Returns the strandless version of this kmer. This is defined as whichever comes first, the kmer or the
+    reverse complement of the kmer lexicographically.
+    """
+    return sorted([k, reverseComplement(k)])[0]
 
 def buildDictWrapper(target, count_files, out_dir, graph, new_graph):
     for uuid, path in count_files:

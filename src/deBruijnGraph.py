@@ -27,12 +27,13 @@ class DeBruijnGraph(object):
 
     def __init__(self, kmer_size):
         self.kmer_size = kmer_size
-        self.G = nx.DiGraph()
+        self.G = nx.Graph()
         self.has_sequences = False
         self.is_pruned = False
         self.paralogs = []
         self.kmers = set()
         self.normalizingKmers = set()
+        self.weights = {}
 
     def nodes(self):
         return self.G.nodes()
@@ -40,103 +41,123 @@ class DeBruijnGraph(object):
     def node(self):
         return self.G.node
 
-
     def addNormalizing(self, name, seq):
         """
         Adds normalizing kmers to the graph. These kmers are from a region of notch2
         that is after the duplication breakpoint, and so has exactly two copies in everyone.
 
+        These kmers are stored as whichever strand comes first lexographically.
+        This is how jellyfish in the -C mode will report the kmer.
+
         """
         k = self.kmer_size - 1
 
         for i in xrange(len(seq) - k):
-            s = seq[i:i + k].upper()
+            s = self.strandless(seq[i:i + k].upper())
             if "N" in s:
                 continue
             self.normalizingKmers.add(s)
 
-
-    def addSequences(self, name, offset, seq):
+    def constructNodes(self, name, offset, seq):
+        """ 
+        constructs left and right nodes for each kmer, adding a sequence edge between nodes.
         """
-
-        Adds k1mers to the graph. Edges are built as the k1mers are loaded.
-
-        """
-        k = self.kmer_size - 1
         self.paralogs.append([name, offset])
-        paralogPosition = Counter()
-        prev = ""
-        for i in xrange(len(seq) - k + 1):
-            #jellyfish -C stores kmer as first lexographically
-            k1mer_fwd = seq[i:i + k].upper()
-            k1mer_rev = reverseComplement(k1mer_fwd)
-            k1mer = sorted([k1mer_fwd, k1mer_rev])[0]
-            if "N" in prev or "N" in k1mer:
-                paralogPosition[name] += 1
+        for i in xrange(len(seq) - self.kmer_size + 1):
+            kmer = strandless(seq[i:i + self.kmer_size].upper())
+            self.kmers.add(kmer)
+            if "N" in kmer:
                 continue
+            l = kmer + "_L"
+            r = kmer + "_R"
+            # should not be possible to have just left or just right
+            if self.G.has_node(l) is not True and self.G.has_node(r) is not True:
+                assert not(self.G.has_node(l) or self.G.has_node(r))
+                self.G.add_node(l)
+                self.G.add_node(r)
+                self.G.add_edge(l, r, count=1, positions=defaultdict(list), weight=2.0)
+                self.G.edge[l][r]['positions'][name].append(i)
             else:
-                if self.G.has_node(k1mer) is not True:
-                    self.G.add_node(k1mer, count=1, positions=defaultdict(list), weight=1.0)
-                    self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
-                    paralogPosition[name] += 1
-                else:
-                    self.G.node[k1mer]['positions'][name].append(paralogPosition[name])
-                    self.G.node[k1mer]['count'] += 1
-                    paralogPosition[name] += 1
-                if prev is not "":
-                    self.G.add_edge(prev, k1mer)
-                self.kmers.add(k1mer)
-            prev = k1mer
+                self.G.edge[l][r]['count'] += 1
+                self.G.edge[l][r]['positions'][name].append(i)
+            assert len(self.G) % 2 == 0
 
-        self.has_sequences = True
+    def constructAdjacencies(self, seq):
+        """
+        Constructs adjacency edges for each the graph.
+        """
+        prev = seq[:self.kmer_size].upper()
+        prev_strandless = strandless(prev)
+        for i in xrange(1, len(seq) - self.kmer_size + 1):
+            prev_size = len(self.G)
+            kmer = seq[i:i + self.kmer_size].upper()
+            if "N" in kmer or "N" in prev:
+                continue
+            kmer_strandless = strandless(kmer)
+            if prev == prev_strandless:
+                # exiting right side of previous kmer
+                if kmer == kmer_strandless:
+                    # entering left side of next kmer
+                    self.G.add_edge(prev + "_R", kmer + "_L")
+                else:
+                    # entering right side of next kmer
+                    self.G.add_edge(prev + "_R", reverseComplement(kmer) + "_R")
+            else:
+                # exiting left side of previous kmer
+                if kmer == kmer_strandless:
+                    # entering left side of next kmer
+                    self.G.add_edge(reverseComplement(prev) + "_L", kmer + "_L")
+                else:
+                    # entering right side of next kmer
+                    self.G.add_edge(reverseComplement(prev) + "_L", reverseComplement(kmer) + "_R")
+            assert prev_size == len(self.G)
+            prev = kmer
+            prev_strandless = kmer_strandless
+
+    def pruneGraph(self):
+        """
+        Creates unitig graphs out of the graph by removing all adjacency edges which fit the following rules:
+        1) adjacent nodes have multiple non self-loop edges
+        2) adjacent nodes have different counts
+        """
+        self_loops = self.G.selfloop_edges()
+        to_remove = []
+        for n in self.G.nodes():
+            adjacency_edges = [(a, b) for a, b in self.G.edges(n) if removeLabel(a) != removeLabel(b)]
+            if len(adjacency_edges) > 2:
+                to_remove.extend(adjacency_edges)
+        for a, b in to_remove:
+            if self.G.has_edge(a, b) and a != b:
+                # edges may appear more than once in to_remove, this is easier than pruning it
+                self.G.remove_edge(a, b)  
 
     def finishBuild(self, graphviz=False):
         """
         Finishes building the graph.
 
-        If graphviz is true, adds a label tag to each node so that the graph can be visualized in graphviz.
-        Sorts the paralog class members, prunes the graph and makes sure there is no overlap between normalizing kmers
-        and data kmers.
+        If graphviz is true, adds a label tag to each sequence edge to improve understandability in graphviz
         """
         if graphviz is True:
-            for node in self.G.nodes():
-                l = node + "\\n" + " - ".join([": ".join([y, ", ".join([str(x) for x in self.G.node[node]['positions'][y]])]) for y in self.G.node[node]['positions']]) + "\\ncount: " + str(self.G.node[node]["count"])
-                self.G.node[node]["label"] = l
+            self_loops = set(self.G.selfloop_edges())
+            for edge in self.G.edges():
+                if edge not in self_loops and removeLabel(edge[0]) == removeLabel(edge[1]):
+                    # sequence edge
+                    l = removeLabel(edge[0]) + "\\n" + " - ".join([": ".join([y, ", ".join([str(x) for x in self.G.edge[edge[0]][edge[1]]['positions'][y]])]) for y in self.G.edge[edge[0]][edge[1]]['positions']]) + "\\ncount: " + str(self.G.edge[edge[0]][edge[1]]["count"])
+                    self.G.edge[edge[0]][edge[1]]["label"] = l
+                else:
+                    self.G.edge[edge[0]][edge[1]]['penwidth'] = 2
 
         self.paralogs = sorted(self.paralogs, key=lambda x: x[0])
 
         #assert len(self.kmers.intersection(self.normalizingKmers)) == 0
 
-    def pruneGraph(self):
+    def connectedComponentIter(self):
         """
-        For each node, if has more than one outgoing edge remove all outgoing edges.
-        Do the same for incoming edges. Also, remove all edges between nodes with
-        different counts.
+        Yields connected components.
 
         """
-        for n in self.G.nodes_iter():
-
-                if len(self.G.in_edges(n)) > 1:
-                    for n1, n2 in self.G.in_edges(n):
-                        self.G.remove_edge(n1, n2)
-
-                if len(self.G.out_edges(n)) > 1:
-                    for n1, n2 in self.G.out_edges(n):
-                        self.G.remove_edge(n1, n2)
-
-                for n1, n2 in self.G.out_edges(n):
-                    if self.G.node[n1]["count"] != self.G.node[n2]["count"]:
-                        self.G.remove_edge(n1, n2)
-
-        self.is_pruned = True
-
-    def weaklyConnectedSubgraphs(self):
-        """
-        Yields weakly connected subgraphs and their topolgical sort.
-
-        """
-        for subgraph in nx.weakly_connected_component_subgraphs(self.G):
-            yield (subgraph, nx.topological_sort(subgraph))
+        for subgraph in nx.connected_component_subgraphs(self.G):
+            yield subgraph
 
     def flagNodes(self, kmer_iter):
         """
@@ -145,10 +166,10 @@ class DeBruijnGraph(object):
         in the genome, so that we won't count it later.
 
         """
-        for k1mer in kmer_iter:
-            k1mer = k1mer.rstrip()
-            if k1mer in self.kmers:
-                self.G.node[k1mer]['bad'] = True
+        for k in kmer_iter:
+            k = k.rstrip()
+            assert k in self.kmers
+            self.G.edge[k + "_L"][k + "_R"]['bad'] = True
 
     def weightKmers(self, weightDict):
         """
@@ -156,6 +177,20 @@ class DeBruijnGraph(object):
         weight. Applies a weight tag to each k1mer in the graph.
 
         """
-        for k1mer, weight in weightDict.iteritems():
-            if k1mer in self.kmers:
-                self.G.node[k1mer]['weight'] = weight
+        for k, w in weightDict.iteritems():
+            assert k in self.kmers
+            self.G.edge[k + "_L"][k + "_R"]['weight'] = w
+
+def removeLabel(edge):
+    """
+    removes the left/right label from a edge, returning the actual kmer
+    """
+    return edge[:-2]
+
+
+def strandless(k):
+    """
+    Returns the strandless version of this kmer. This is defined as whichever comes first, the kmer or the
+    reverse complement of the kmer lexicographically.
+    """
+    return sorted([k, reverseComplement(k)])[0]

@@ -9,30 +9,38 @@ from jobTree.src.bioio import reverseComplement
 
 class Block(object):
     """
-    Represents one block (one weakly connected component)
+    Represents one block (connected component).
     Each block may have anywhere from 1 to n paralogs represented in
     it. Initialized by passing in all of the nodes from one DeBruijnGraph
-    WCC. Stores a mapping between each paralog this WCC represents
+    CC. Stores a mapping between each paralog this CC represents
     to the start and stop positions in the source sequence.
     Also stores all of the kmers in this block as a set.
 
     """
 
-    def __init__(self, subgraph, topo_sorted, min_ploidy=0, max_ploidy=4):
+    def __init__(self, subgraph, min_ploidy=0, max_ploidy=4):
         # a set of all kmers represented by this block
+        # each key is a kmer and each value is the strandless kmer - the strand that comes first
+        # lexicographically is what jellyfish will count in -C mode
         self.kmers = set()
         self.adjustedCount = None
+        
+         
 
-        for kmer in topo_sorted:
-            if 'bad' not in subgraph.node[kmer]:
-                self.kmers.add(kmer)
+
+        startPositions = defaultdict(list)
+        for a, b in subgraph.edges():
+            # is this a sequence edge?
+            if len(subgraph[a][b]) > 0:
+                # has this kmer been flagged?
+                if 'bad' not in subgraph[a][b]:
+                    self.kmers.add(removeLabel(a))
+                    # merge all start positions into one dict for variable creation
+                    for para in subgraph[a][b]['positions']:
+                        startPositions[para].extend(subgraph[a][b]['positions'][para])
 
         # one variable for each instance of a input sequence
         self.variables = {}
-
-        #since each node has the same set of sequences, and we have a topological sort, we can 
-        #pull down the positions of the first node as the genomic start position
-        start_node = subgraph.node[topo_sorted[0]]
 
         #build variables for each instance
         for para in start_node["positions"]:
@@ -63,13 +71,10 @@ class Block(object):
 
     def getKmers(self):
         """returns set of all kmers in block"""
-        return self.kmers
+        for kmer, strandless_kmer in self.kmers.iteritems():
+            yield kmer, strandless_kmer
 
-    def getReverseKmers(self):
-        """returns reverse complement kmers in this block"""
-        return self.reverseKmers
-
-    def get_count(self):
+    def getCount(self):
         """returns counts of data seen in this block"""
         return self.count
 
@@ -125,8 +130,8 @@ class KmerModel(SequenceGraphLpProblem):
         assert deBruijnGraph.is_pruned and deBruijnGraph.has_sequences
 
         # build the blocks, don't tie them together yet
-        for subgraph, topo_sorted in deBruijnGraph.weaklyConnectedSubgraphs():
-            b = Block(subgraph, topo_sorted)
+        for subgraph, in deBruijnGraph.connectedComponentIter():
+            b = Block(subgraph)
             self.blocks.append(b)
 
         for block in self.blocks:
@@ -163,7 +168,6 @@ class KmerModel(SequenceGraphLpProblem):
             for s, v, b in self.block_map["Notch2NL-D"]:
                 self.add_constraint(v == self.inferD)
 
-
     def introduceData(self, kmerCounts, k1mer_size=49):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
@@ -172,10 +176,9 @@ class KmerModel(SequenceGraphLpProblem):
         """
         for block in self.blocks:
             if len(block) > 0:
-                count = sum(kmerCounts.get(x, 0) * self.G.G.node[x]['weight'] for x in block.getKmers())
-                adjustedCount = (2.0 * count) / (len(block) * self.normalizing)
+                count = sum(kmerCounts.get(s_k, 0) * self.G.weights[k] for k, s_k in block.getKmers())
+                adjustedCount = (1.0 * count) / (len(block) * self.normalizing)
                 block.adjustedCount = adjustedCount
-
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)
 
     def reportCopyMap(self):
@@ -210,7 +213,7 @@ class KmerModel(SequenceGraphLpProblem):
 
     def reportCondensedCopyMap(self):
         """
-        Reports copy number for each ILP variable, once.
+        Reports copy number for each ILP variable, once. If a block lacks a variable, reports the previous value.
         format [position, span, value]
         """
         copy_map = defaultdict(list)
@@ -243,3 +246,18 @@ class KmerModel(SequenceGraphLpProblem):
 
     def getOffsets(self):
         return self.offset_map
+
+
+def removeLabel(edge):
+    """
+    removes the left/right label from a edge, returning the actual kmer
+    """
+    return edge[:-2]
+
+
+def strandless(k):
+    """
+    Returns the strandless version of this kmer. This is defined as whichever comes first, the kmer or the
+    reverse complement of the kmer lexicographically.
+    """
+    return sorted([k, reverseComplement(k)])[0]

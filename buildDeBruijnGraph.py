@@ -34,9 +34,13 @@ def main(args):
     
     G = DeBruijnGraph(args.kmer_size)
     
+    # first pass adds nodes
     for name, seq in fastaRead(args.reference):
         name, offset = name.split("_")[:2]
-        G.addSequences(name, offset, seq)
+        G.constructNodes(name, offset, seq)
+    # second pass constructs adjacenices
+    for name, seq in fastaRead(args.reference):
+        G.constructAdjacencies(seq)
 
     for name, seq in fastaRead(args.normalizing):
         G.addNormalizing(name, seq)

@@ -122,22 +122,21 @@ class DeBruijnGraph(object):
         """
         to_remove = []
         for n in self.G.nodes():
-            kmer = removeLabel(n)
-            adjacency_edges = [(a, b) for a, b in self.G.edges(n) if removeLabel(a) != removeLabel(b)]
-            if len(adjacency_edges) > 1:
-                # remove all adjacency edges from nodes with more than one adjacency edge
-                to_remove.extend(adjacency_edges)
-                # remove the adjacency edge if it touches a node with a different count
-            else:
-                # networkx always reports this node first, right?
-                a, b = adjacency_edges[0]
-                assert a == n
-                if self.G.node[a]['count'] != self.G.node[b]['count']:
-                    to_remove.extend(adjacency_edges)
+            if self.G.degree(n) > 2:
+                for a, b in self.G.edges(n):
+                    if a == b or removeLabel(a) != removeLabel(b):
+                        to_remove.append([a, b])
+            elif self.G.degree(n) == 2:
+                # make sure we aren't leaving edges connecting sequences with different counts
+                for a, b in self.G.edges(n):
+                    if removeLabel(a) != removeLabel(b):
+                        dest_a, dest_b = createLabels(b)
+                        source_a, source_b = createLabels(a)
+                        if self.G.edge[source_a][source_b]['count'] != self.G.edge[dest_a][dest_b]['count']:                        
+                            to_remove.append([a, b])
         for a, b in to_remove:
-            if self.G.has_edge(a, b) and a != b:
-                # don't remove self loop edges
-                self.G.remove_edge(a, b)  
+            if self.G.has_edge(a, b):
+                self.G.remove_edge(a, b)
 
     def finishBuild(self, graphviz=False):
         """
@@ -189,11 +188,20 @@ class DeBruijnGraph(object):
             assert k in self.kmers
             self.G.edge[k + "_L"][k + "_R"]['weight'] = w
 
+
 def removeLabel(edge):
     """
     removes the left/right label from a edge, returning the actual kmer
     """
     return edge[:-2]
+
+
+def createLabels(edge):
+    """
+    returns the node names between a sequence edge given the edge (kmer)
+    """
+    k = removeLabel(edge)
+    return k + "_L", k + "_R"
 
 
 def strandless(k):

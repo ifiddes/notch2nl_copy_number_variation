@@ -20,51 +20,50 @@ class Block(object):
     """
 
     def __init__(self, subgraph, min_ploidy=0, max_ploidy=4):
-        # a set of all kmers represented by this block
-        # each key is a kmer and each value is the strandless kmer - the strand that comes first
-        # lexicographically is what jellyfish will count in -C mode
         self.kmers = set()
-        self.adjustedCount = None
-        
-        # find the start and stop nodes for this subgraph
-        start_stop = []
-        for n in subgraph.nodes():
-            if len(subgraph.edges(n)) == 1:
-                start_stop.append(n)
-        if len(start_stop) == 1:
-            # this subgraph starts and stops on the same node due to a self loop
-            start = stop = start_stop
-        else:
-            
-
-        # find the shortest path between the start and stop nodes
-        path = nx.shortest_path()
-
-
-
-        startPositions = defaultdict(list)
-        for a, b in subgraph.edges():
-            # is this a sequence edge?
-            if len(subgraph[a][b]) > 0:
-                # has this kmer been flagged?
-                if 'bad' not in subgraph[a][b]:
-                    self.kmers.add(removeLabel(a))
-                    # merge all start positions into one dict for variable creation
-                    for para in subgraph[a][b]['positions']:
-                        startPositions[para].extend(subgraph[a][b]['positions'][para])
-
-        # one variable for each instance of a input sequence
         self.variables = {}
+        self.adjustedCount = None
 
-        #build variables for each instance
-        for para in start_node["positions"]:
-            for start in start_node["positions"][para]:
-                if len(self.kmers) > 0:
-                    self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
-                                   lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
-                else:
-                    self.variables[(para, int(start))] = None
-
+        if len(subgraph) == 2:
+            # special case - either a self loop occured or a isolated kmer
+            # in this case each start for each para on this node is a valid position
+            a, b = subgraph.nodes()
+            if 'bad' not in subgraph[a][b]:
+                self.kmers.add(removeLabel(a))
+            for para in subgraph[a][b]['positions']:
+                for start in subgraph[a][b]['positions'][para]:
+                    if len(self.kmers) > 0:
+                        self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
+                                       lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
+                    else:
+                        self.variables[(para, int(start))] = None
+        else:
+            # find all sequence edges
+            sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
+            # add all unflagged kmers to block
+            for a, b in sequence_edges:
+                if 'bad' not in subgraph.edge[a][b]:
+                    self.kmers.add(removeLabel(a))
+            # find start node (node with smallest position) without a topological sort (undirected)
+            # this will be the start node for all instances in this block
+            # and so we do this hack to randomly pick a paralog
+            # this should really be done very differently, I am a bad computer scientist
+            a, b = sequence_edges[0]
+            p = subgraph[a][b]['positions'].iterkeys().next()
+            s = min(subgraph[a][b]['positions'][p])
+            for new_a, new_b in sequence_edges[1:]:
+                new_s = min(subgraph[a][b]['positions'][p])
+                if new_s < s:
+                    s = new_s
+                    a, b = new_a, new_b
+            # we have now found the source node. Use its information to build variables
+            for para in subgraph[a][b]['positions']:
+                for start in subgraph[a][b]['positions'][para]:
+                    if len(self.kmers) > 0:
+                        self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
+                                       lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
+                    else:
+                        self.variables[(para, int(start))] = None
 
     def __len__(self):
         return len(self.kmers)
@@ -140,11 +139,8 @@ class KmerModel(SequenceGraphLpProblem):
         DeBruijnGraph, which is a networkx DeBruijnGraph built over the genome region of interest.
 
         """
-        # make sure the graph has been initialized and pruned
-        assert deBruijnGraph.is_pruned and deBruijnGraph.has_sequences
-
         # build the blocks, don't tie them together yet
-        for subgraph, in deBruijnGraph.connectedComponentIter():
+        for subgraph in deBruijnGraph.connectedComponentIter():
             b = Block(subgraph)
             self.blocks.append(b)
 
@@ -170,8 +166,9 @@ class KmerModel(SequenceGraphLpProblem):
                 self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
 
         #now we force all Notch2 variables to be equal to 2
-        for s, v, b in self.block_map["Notch2"]:
-            self.add_constraint(v == 2)
+        if "Notch2" in self.block_map:
+            for s, v, b in self.block_map["Notch2"]:
+                self.add_constraint(v == 2)
 
         #if we have previously inferred C/D copy numbers, set those values
         if self.inferC is not None:

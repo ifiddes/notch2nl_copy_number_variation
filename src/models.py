@@ -233,17 +233,17 @@ class IlpModel(object):
             runJellyfish(self.localTempDir, countFile, self.fastqFile, self.uuid, self.kmerSize)
         G = pickle.load(open(self.graph, "rb"))
         dataCounts = Counter()
-        normalizingCounts = Counter()
+        normalizing = 0
         with open(countFile) as f:
             rm = ">\n"
             for count, seq in izip(*[f] * 2):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
-                if seq in G.strandlessKmers:
+                if seq in G.kmers:
                     dataCounts[seq] += int(count)
                 elif seq in G.normalizingKmers:
-                    normalizingCounts[seq] += int(count)
-        normalizing = 1.0 * sum(normalizingCounts[k] * G.normalizingKmers[k] for k in normalizingCounts) / len(normalizingCounts)
+                    normalizing += count
+        normalizing /= (1.0 * len(G.normalizingKmers))
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.inferC, self.inferD)
         P.introduceData(dataCounts)
         P.solve()

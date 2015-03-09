@@ -84,8 +84,7 @@ class Block(object):
 
     def getKmers(self):
         """returns set of all kmers in block"""
-        for kmer, strandless_kmer in self.kmers.iteritems():
-            yield kmer, strandless_kmer
+        return self.kmers
 
     def getCount(self):
         """returns counts of data seen in this block"""
@@ -179,7 +178,7 @@ class KmerModel(SequenceGraphLpProblem):
             for s, v, b in self.block_map["Notch2NL-D"]:
                 self.add_constraint(v == self.inferD)
 
-    def introduceData(self, kmerCounts, k1mer_size=49):
+    def introduceData(self, kmerCounts):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
         representing the results of kmer counting a WGS dataset (format seq:count)
@@ -187,7 +186,7 @@ class KmerModel(SequenceGraphLpProblem):
         """
         for block in self.blocks:
             if len(block) > 0:
-                count = sum(kmerCounts.get(s_k, 0) * self.G.weights[k] for k, s_k in block.getKmers())
+                count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
                 adjustedCount = (1.0 * count) / (len(block) * self.normalizing)
                 block.adjustedCount = adjustedCount
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)

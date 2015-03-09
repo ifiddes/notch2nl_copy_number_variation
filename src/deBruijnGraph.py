@@ -33,7 +33,6 @@ class DeBruijnGraph(object):
         self.paralogs = []
         self.kmers = set()
         self.normalizingKmers = set()
-        self.weights = {}
 
     def nodes(self):
         return self.G.nodes()
@@ -50,10 +49,9 @@ class DeBruijnGraph(object):
         This is how jellyfish in the -C mode will report the kmer.
 
         """
-        k = self.kmer_size - 1
 
-        for i in xrange(len(seq) - k):
-            s = self.strandless(seq[i:i + k].upper())
+        for i in xrange(len(seq) - self.kmer_size + 1):
+            s = strandless(seq[i:i + self.kmer_size].upper())
             if "N" in s:
                 continue
             self.normalizingKmers.add(s)
@@ -65,9 +63,9 @@ class DeBruijnGraph(object):
         self.paralogs.append([name, offset])
         for i in xrange(len(seq) - self.kmer_size + 1):
             kmer = strandless(seq[i:i + self.kmer_size].upper())
-            self.kmers.add(kmer)
             if "N" in kmer:
                 continue
+            self.kmers.add(kmer)
             l = kmer + "_L"
             r = kmer + "_R"
             # should not be possible to have just left or just right
@@ -75,7 +73,7 @@ class DeBruijnGraph(object):
                 assert not(self.G.has_node(l) or self.G.has_node(r))
                 self.G.add_node(l)
                 self.G.add_node(r)
-                self.G.add_edge(l, r, count=1, positions=defaultdict(list), weight=2.0)
+                self.G.add_edge(l, r, count=1, positions=defaultdict(list))
                 self.G.edge[l][r]['positions'][name].append(i)
             else:
                 self.G.edge[l][r]['count'] += 1
@@ -156,7 +154,9 @@ class DeBruijnGraph(object):
 
         self.paralogs = sorted(self.paralogs, key=lambda x: x[0])
 
-        #assert len(self.kmers.intersection(self.normalizingKmers)) == 0
+        self.weights = {x : 2.0 for x in self.kmers}
+
+        assert len(self.kmers.intersection(self.normalizingKmers)) == 0
 
     def connectedComponentIter(self):
         """

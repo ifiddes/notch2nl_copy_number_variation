@@ -39,13 +39,12 @@ class buildDict(Target):
 
     def run(self):
         G = pickle.load(open(self.graph))
-        normalizing = 0
         with open(self.path) as f:
             rm = ">\n"
             for count, seq in izip(*[f] * 2):
                 seq = seq.translate(None, rm)
                 count = int(count.translate(None, rm))
-                if seq in G.strandlessKmers:
+                if seq in G.kmers:
                     self.counts[seq] += count
                 elif seq in G.normalizingKmers:
                     self.normalizing += count
@@ -79,7 +78,7 @@ class Merge(Target):
         with open(os.path.join(self.out_dir, "bad_kmers.fasta"), "w") as outf:
             for k in kmers:
                 if added_counts[k] == 0:
-                    G.G.node[k]['bad'] = True
+                    G.G.edge[k + "_L"][k + "_R"]['bad'] = True
                     del added_counts[k]
                     outf.write(">{0}\n{0}\n".format(k))
 
@@ -99,19 +98,20 @@ class Merge(Target):
         
         weights = {}
         for k in filtered_kmers:
-            input_sequences = G.G.node[k]['positions'].keys()
-            weights[k] = G.weights[k] * (1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1))
+            input_sequences = G.G.edge[k + "_L"][k + "_R"]['positions'].keys()
+            weights[k] = 1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1)
 
         with open(os.path.join(self.out_dir, "high_weight_bad_kmers.fasta"), "w") as outf:
             for k in filtered_kmers:
                 if weights[k] > 4.0:
-                    G.G.node[k]['bad'] = True
-                    del weights[k]
+                    G.G.edge[k + "_L"][k + "_R"]['bad'] = True
                     outf.write(">{0}\n{0}\n".format(k))
 
         with open(os.path.join(self.out_dir, "weights.txt"), "w") as outf:
             for k in weights:
                 outf.write("{}\t{}\n".format(k, weights[k]))
+
+        weights = {x:y for x,y in weights.iteritems() if y <= 4.0}
         
         G.weightKmers(weights)
         

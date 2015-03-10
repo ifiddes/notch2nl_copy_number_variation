@@ -2,9 +2,9 @@
 batchSystem="gridEngine"
 maxThreads="20"
 defaultMemory="8589934592"
-jobTree=".downloadedJobTree2/"
-log="downloadedLog2.txt"
-maxCpus="70"
+jobTree=".downloadedJobTree/"
+log="downloadedLog.txt"
+maxCpus="50"
 
 
 export PYTHONPATH=./:${PYTHONPATH}

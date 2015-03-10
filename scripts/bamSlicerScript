@@ -4,7 +4,7 @@ maxThreads="15"
 defaultMemory="8589934592"
 jobTree=".slicerJobTree/"
 log="slicerLog.txt"
-maxCpus="100"
+maxCpus="70"
 queries="queries/queries.pickle"
 
 

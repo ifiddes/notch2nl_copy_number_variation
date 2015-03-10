@@ -12,14 +12,14 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", type=DirType, default="./output_weights/",
+    parser.add_argument("--output", "-o", type=DirType, default="./output_weighted/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=40.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=35.0,
                         help="breakpoint penalty used for ILP model.")
-    parser.add_argument("--data_penalty", type=float, default=0.8,
+    parser.add_argument("--data_penalty", type=float, default=1.0,
                         help="data penalty used for ILP model.")
-    parser.add_argument("--tightness_penalty", type=float, default=0.25,
+    parser.add_argument("--tightness_penalty", type=float, default=0.05,
                         help="How closely should a copy number of 2 be enforced?")
     parser.add_argument("--graph", type=FileType,
                         default="./data/graphs/masked_weighted.pickle")

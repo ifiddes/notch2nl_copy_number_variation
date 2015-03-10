@@ -50,7 +50,7 @@ class DeBruijnGraph(object):
 
         """
 
-        for i in xrange(len(seq) - self.kmer_size + 1):
+        for i in xrange(len(seq) - self.kmer_size):
             s = strandless(seq[i:i + self.kmer_size].upper())
             if "N" in s:
                 continue
@@ -61,7 +61,7 @@ class DeBruijnGraph(object):
         constructs left and right nodes for each kmer, adding a sequence edge between nodes.
         """
         self.paralogs.append([name, offset])
-        for i in xrange(len(seq) - self.kmer_size + 1):
+        for i in xrange(len(seq) - self.kmer_size):
             kmer = strandless(seq[i:i + self.kmer_size].upper())
             if "N" in kmer:
                 continue
@@ -86,7 +86,7 @@ class DeBruijnGraph(object):
         """
         prev = seq[:self.kmer_size].upper()
         prev_strandless = strandless(prev)
-        for i in xrange(1, len(seq) - self.kmer_size + 1):
+        for i in xrange(1, len(seq) - self.kmer_size):
             prev_size = len(self.G)
             kmer = seq[i:i + self.kmer_size].upper()
             if "N" in kmer or "N" in prev:

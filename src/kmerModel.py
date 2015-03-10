@@ -42,7 +42,7 @@ class Block(object):
             sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
             # add all unflagged kmers to block
             for a, b in sequence_edges:
-                if 'bad' not in subgraph.edge[a][b]:
+                if 'bad' not in subgraph[a][b]:
                     self.kmers.add(removeLabel(a))
             # find start node (node with smallest position) without a topological sort (undirected)
             # this will be the start node for all instances in this block
@@ -80,7 +80,7 @@ class Block(object):
 
     def getVariables(self):
         """returns all LP variables in this block"""
-        return self.variables.values()
+        return [x for x in self.variables.values() if x is not None]
 
     def getKmers(self):
         """returns set of all kmers in block"""
@@ -160,9 +160,18 @@ class KmerModel(SequenceGraphLpProblem):
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
         #tie each variable to be approximately equal to copy number 2 subject to the tightness constraint
+        #for block in self.blocks:
+        #    for para, start, variable in block.variableIter():
+        #        self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
+
+        exp_dict = {x[0] : self.defaultPloidy for x in deBruijnGraph.paralogs}
+        if self.inferC is not None:
+            exp_dict["Notch2NL-C"] = self.inferC
+        if self.inferD is not None:
+            exp_dict["Notch2NL-D"] = self.inferD
         for block in self.blocks:
-            for para, start, variable in block.variableIter():
-                self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
+            expected = sum(exp_dict[p] for p, s, v in block.variableIter() if v is not None)
+            self.constrain_approximately_equal(expected, sum(block.getVariables()), penalty=self.tightness)
 
         #now we force all Notch2 variables to be equal to 2
         if "Notch2" in self.block_map:

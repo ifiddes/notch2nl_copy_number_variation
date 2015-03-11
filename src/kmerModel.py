@@ -189,7 +189,8 @@ class KmerModel(SequenceGraphLpProblem):
                 span = start - prevStart
                 if prevVar is not None:
                     copy_map[para].append([prevStart + offset, span, pulp.value(prevVar)])
-                    prevVar = pulp.value(var)
+                    if var is not None:
+                        prevVar = pulp.value(var)
                 else:
                     copy_map[para].append([prevStart + offset, span, prevVar])
                 prevStart, prevBlock = start, block
@@ -213,7 +214,8 @@ class KmerModel(SequenceGraphLpProblem):
                 span = start - prevStart
                 if prevVar is not None:
                     copy_map[para].append([prevStart + offset, span, prevBlock.adjustedCount / len(prevBlock.getVariables())])
-                    prevVar = prevBlock.adjustedCount / len(prevBlock.getVariables())
+                    if var is not None:
+                        prevVar = block.adjustedCount / len(block.getVariables())
                 else:
                     copy_map[para].append([prevStart + offset, span, prevVar])
                 prevStart, prevBlock = start, block

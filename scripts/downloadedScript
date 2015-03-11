@@ -4,7 +4,7 @@ maxThreads="20"
 defaultMemory="8589934592"
 jobTree=".downloadedJobTree/"
 log="downloadedLog.txt"
-maxCpus="50"
+maxCpus="60"
 
 
 export PYTHONPATH=./:${PYTHONPATH}

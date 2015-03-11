@@ -22,6 +22,7 @@ class Block(object):
 
     def __init__(self, subgraph, min_ploidy=0, max_ploidy=4):
         self.variables = {}
+        self.subgraph = subgraph
         self.adjustedCount = None
         # find all sequence edges
         sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
@@ -37,23 +38,17 @@ class Block(object):
             for i in xrange(len(subgraph[start_a][start_b]['positions'][p])):
                 # find the start and stop node for each instance of this paralog
                 f = s = subgraph[start_a][start_b]['positions'][p][i]
-                # loop over all remaining sequence edges and update the start/stop as necessary
+                # loop over all remaining sequence edges and update the start necessary
                 for new_a, new_b in sequence_edges[1:]:
                     new_s = subgraph[new_a][new_b]['positions'][p][i]
-                    new_f = subgraph[new_a][new_b]['positions'][p][i]
                     if new_s < s:
                         s = new_s
                         start_a, start_b = new_a, new_b
-                    if new_f > f:
-                        f = new_f
-                        stop_a, stop_b = new_a, new_b
-                assert f - s + 1 >= len(subgraph) / 2
-                span = f - s + 1
                 if len(self.kmers) > 0:
-                    self.variables[(p, s, span)] = pulp.LpVariable("{}_{}".format(p, s), lowBound=min_ploidy, 
+                    self.variables[(p, s)] = pulp.LpVariable("{}_{}".format(p, s), lowBound=min_ploidy, 
                                                                    upBound=max_ploidy, cat="Integer")
                 else:
-                    self.variables[(p, s, span)] = None
+                    self.variables[(p, s)] = None
 
     def kmerIter(self):
         """iterator over all kmers in this block"""
@@ -62,8 +57,8 @@ class Block(object):
 
     def variableIter(self):
         """iterator over variables and related values in this block"""
-        for (para, start, span), variable in self.variables.iteritems():
-            yield para, start, span, variable
+        for (para, start), variable in self.variables.iteritems():
+            yield para, start, variable
 
     def getVariables(self):
         """returns all LP variables in this block"""
@@ -122,8 +117,8 @@ class KmerModel(SequenceGraphLpProblem):
             self.blocks.append(b)
 
         for block in self.blocks:
-            for para, start, span, variable in block.variableIter():
-                self.block_map[para].append([start, span, variable, block])
+            for para, start, variable in block.variableIter():
+                self.block_map[para].append([start, variable, block])
 
         #sort the block maps by start positions
         for para in self.block_map:
@@ -132,7 +127,7 @@ class KmerModel(SequenceGraphLpProblem):
         #now we tie the blocks together
         for para in self.block_map:
             #filter out all blocks without variables (no kmers)
-            variables = [var for start, span, var, block in self.block_map[para] if var is not None]
+            variables = [var for start, var, block in self.block_map[para] if var is not None]
             for i in xrange(1, len(variables)):
                 var_a, var_b = variables[i - 1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
@@ -148,21 +143,21 @@ class KmerModel(SequenceGraphLpProblem):
         if self.inferD is not None:
             self.exp_dict["Notch2NL-D"] = self.inferD
         for block in self.blocks:
-            expected = sum(self.exp_dict[p] for p, s, sp, v in block.variableIter() if v is not None)
+            expected = sum(self.exp_dict[p] for p, s, v in block.variableIter() if v is not None)
             self.constrain_approximately_equal(expected, sum(block.getVariables()), penalty=self.tightness)
 
         #now we force all Notch2 variables to be equal to 2
         if "Notch2" in self.block_map:
-            for start, span, var, block in self.block_map["Notch2"]:
+            for start, var, block in self.block_map["Notch2"]:
                 self.add_constraint(var == 2)
 
         #if we have previously inferred C/D copy numbers, set those values
         if self.inferC is not None:
-            for start, span, var, block in self.block_map["Notch2NL-C"]:
+            for start, var, block in self.block_map["Notch2NL-C"]:
                 self.add_constraint(var == self.inferC)
 
         if self.inferD is not None:
-            for start, span, var, block in self.block_map["Notch2NL-D"]:
+            for start, var, block in self.block_map["Notch2NL-D"]:
                 self.add_constraint(var == self.inferD)
 
     def introduceData(self, kmerCounts):
@@ -185,14 +180,21 @@ class KmerModel(SequenceGraphLpProblem):
         """
         copy_map = defaultdict(list)
         for para in self.block_map:
-            prevVar = self.exp_dict[para]
             offset = self.offset_map[para]
-            for start, span, var, block in self.block_map[para]:
-                if var is not None:
-                    copy_map[para].append([start + offset, span, pulp.value(var)])
+            prevStart, prevVar, prevBlock = self.block_map[para][0]
+            if prevVar is None:
+                prevVar = self.exp_dict[para]
+            for i in xrange(1, len(self.block_map[para])):
+                start, var, block = self.block_map[para][i]
+                span = start - prevStart
+                if prevVar is not None:
+                    copy_map[para].append([prevStart + offset, span, pulp.value(prevVar)])
                     prevVar = pulp.value(var)
                 else:
-                    copy_map[para].append([start + offset, span, prevVar])
+                    copy_map[para].append([prevStart + offset, span, prevVar])
+                prevStart, prevBlock = start, block
+            finalSpan = self.G.sizes[para] - prevStart
+            copy_map[para].append([prevStart + offset, span, prevVar])
         return copy_map
 
     def reportNormalizedRawDataMap(self):
@@ -203,12 +205,20 @@ class KmerModel(SequenceGraphLpProblem):
         prevVar = 2
         for para in self.block_map:
             offset = self.offset_map[para]
-            for start, span, var, block in self.block_map[para]:
-                if var is not None:
-                    copy_map[para].append([start + offset, span, block.adjustedCount / len(block.getVariables())])
-                    prevVar = block.adjustedCount / len(block.getVariables())
+            prevStart, prevVar, prevBlock = self.block_map[para][0]
+            if prevVar is None:
+                prevVar = self.exp_dict[para]
+            for i in xrange(1, len(self.block_map[para])):
+                start, var, block = self.block_map[para][i]
+                span = start - prevStart
+                if prevVar is not None:
+                    copy_map[para].append([prevStart + offset, span, prevBlock.adjustedCount / len(prevBlock.getVariables())])
+                    prevVar = prevBlock.adjustedCount / len(prevBlock.getVariables())
                 else:
-                    copy_map[para].append([start + offset, span, prevVar])
+                    copy_map[para].append([prevStart + offset, span, prevVar])
+                prevStart, prevBlock = start, block
+            finalSpan = self.G.sizes[para] - prevStart
+            copy_map[para].append([prevStart + offset, span, prevVar])
         return copy_map
 
     def getOffsets(self):

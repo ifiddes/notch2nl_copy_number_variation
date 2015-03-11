@@ -33,6 +33,7 @@ class DeBruijnGraph(object):
         self.paralogs = []
         self.kmers = set()
         self.normalizingKmers = set()
+        self.sizes = {}
 
     def nodes(self):
         return self.G.nodes()
@@ -61,6 +62,7 @@ class DeBruijnGraph(object):
         constructs left and right nodes for each kmer, adding a sequence edge between nodes.
         """
         self.paralogs.append([name, offset])
+        self.sizes[name] = len(seq)
         for i in xrange(len(seq) - self.kmer_size + 1):
             kmer = strandless(seq[i:i + self.kmer_size].upper())
             if "N" in kmer:

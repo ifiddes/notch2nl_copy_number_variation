@@ -37,6 +37,7 @@ class Block(object):
                                        lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
                     else:
                         self.variables[(para, int(start))] = None
+            self.span = 1
         else:
             # find all sequence edges
             sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
@@ -51,11 +52,15 @@ class Block(object):
             a, b = sequence_edges[0]
             p = subgraph[a][b]['positions'].iterkeys().next()
             s = min(subgraph[a][b]['positions'][p])
+            f = max(subgraph[a][b]['positions'][p])
             for new_a, new_b in sequence_edges[1:]:
                 new_s = min(subgraph[a][b]['positions'][p])
+                new_f = max(subgraph[a][b]['positions'][p])
                 if new_s < s:
                     s = new_s
                     a, b = new_a, new_b
+                if new_f > f:
+                    f = new_f
             # we have now found the source node. Use its information to build variables
             for para in subgraph[a][b]['positions']:
                 for start in subgraph[a][b]['positions'][para]:
@@ -64,6 +69,7 @@ class Block(object):
                                        lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
                     else:
                         self.variables[(para, int(start))] = None
+            self.span = f - s
 
     def __len__(self):
         return len(self.kmers)
@@ -89,6 +95,10 @@ class Block(object):
     def getCount(self):
         """returns counts of data seen in this block"""
         return self.count
+
+    def getSpan(self):
+        """returns the span of this block. May be not the same as the length due to flagged kmers."""
+        return self.span
 
 
 class KmerModel(SequenceGraphLpProblem):
@@ -238,15 +248,13 @@ class KmerModel(SequenceGraphLpProblem):
         copy_map = defaultdict(list)
         for para in self.block_map:
             prevVar = self.exp_dict[para]
-            prevStart = 0
             offset = self.offset_map[para]
             for start, var, block in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, start - prevStart, pulp.value(var)])
+                    copy_map[para].append([start + offset, block.getSpan(), pulp.value(var)])
                     prevVar = pulp.value(var)
                 else:
-                    copy_map[para].append([start + offset, start - prevStart, prevVar])
-                prevStart = start
+                    copy_map[para].append([start + offset, block.getSpan(), prevVar])
         return copy_map
 
     def reportCondensedNormalizedRawDataMap(self):
@@ -259,11 +267,10 @@ class KmerModel(SequenceGraphLpProblem):
             offset = self.offset_map[para]
             for start, var, block in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, start - prevStart, block.adjustedCount / len(block.getVariables())])
+                    copy_map[para].append([start + offset, block.getSpan(), block.adjustedCount / len(block.getVariables())])
                     prevVar = block.adjustedCount / len(block.getVariables())
                 else:
-                    copy_map[para].append([start + offset, start - prevStart, prevVar])
-                prevStart = start
+                    copy_map[para].append([start + offset, block.getSpan(), prevVar])
         return copy_map
 
     def getOffsets(self):

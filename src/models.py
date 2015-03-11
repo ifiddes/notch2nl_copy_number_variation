@@ -247,8 +247,8 @@ class IlpModel(object):
         P = KmerModel(G, normalizing, self.bpPenalty, self.dataPenalty, self.tightness, self.inferC, self.inferD)
         P.introduceData(dataCounts)
         P.solve()
-        self.resultDict = P.reportCondensedCopyMap()
-        self.rawCounts = P.reportCondensedNormalizedRawDataMap()
+        self.resultDict = P.reportCopyMap()
+        self.rawCounts = P.reportNormalizedRawDataMap()
         self.offsetMap = P.getOffsets()
         self.wigglePlots()
 

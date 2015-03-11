@@ -123,7 +123,7 @@ class KmerModel(SequenceGraphLpProblem):
 
         for block in self.blocks:
             for para, start, span, variable in block.variableIter():
-                self.block_map[para].append([start, span, variable])
+                self.block_map[para].append([start, span, variable, block])
 
         #sort the block maps by start positions
         for para in self.block_map:
@@ -132,7 +132,7 @@ class KmerModel(SequenceGraphLpProblem):
         #now we tie the blocks together
         for para in self.block_map:
             #filter out all blocks without variables (no kmers)
-            variables = [var for start, span, var in self.block_map[para] if var is not None]
+            variables = [var for start, span, var, block in self.block_map[para] if var is not None]
             for i in xrange(1, len(variables)):
                 var_a, var_b = variables[i - 1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
@@ -187,7 +187,7 @@ class KmerModel(SequenceGraphLpProblem):
         for para in self.block_map:
             prevVar = self.exp_dict[para]
             offset = self.offset_map[para]
-            for start, span, var in self.block_map[para]:
+            for start, span, var, block in self.block_map[para]:
                 if var is not None:
                     copy_map[para].append([start + offset, span, pulp.value(var)])
                     prevVar = pulp.value(var)
@@ -203,7 +203,7 @@ class KmerModel(SequenceGraphLpProblem):
         prevVar = 2
         for para in self.block_map:
             offset = self.offset_map[para]
-            for start, span, var in self.block_map[para]:
+            for start, span, var, block in self.block_map[para]:
                 if var is not None:
                     copy_map[para].append([start + offset, span, block.adjustedCount / len(block.getVariables())])
                     prevVar = block.adjustedCount / len(block.getVariables())

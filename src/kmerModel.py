@@ -1,7 +1,8 @@
 import pulp
 from collections import Counter, defaultdict
 import networkx as nx
-from itertools import izip
+from itertools import izip, groupby
+from operator import itemgetter
 from math import log, exp
 
 from src.abstractIlpSolving import SequenceGraphLpProblem
@@ -20,59 +21,39 @@ class Block(object):
     """
 
     def __init__(self, subgraph, min_ploidy=0, max_ploidy=4):
-        self.kmers = set()
         self.variables = {}
         self.adjustedCount = None
-
-        if len(subgraph) == 2:
-            # special case - either a self loop occured or a isolated kmer
-            # in this case each start for each para on this node is a valid position
-            a, b = subgraph.nodes()
-            if 'bad' not in subgraph[a][b]:
-                self.kmers.add(removeLabel(a))
-            for para in subgraph[a][b]['positions']:
-                for start in subgraph[a][b]['positions'][para]:
-                    if len(self.kmers) > 0:
-                        self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
-                                       lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
-                    else:
-                        self.variables[(para, int(start))] = None
-            self.span = 1
-        else:
-            # find all sequence edges
-            sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
-            # add all unflagged kmers to block
-            for a, b in sequence_edges:
-                if 'bad' not in subgraph[a][b]:
-                    self.kmers.add(removeLabel(a))
-            # find start node (node with smallest position) without a topological sort (undirected)
-            # this will be the start node for all instances in this block
-            # and so we do this hack to randomly pick a paralog
-            # this should really be done very differently, I am a bad computer scientist
-            a, b = sequence_edges[0]
-            p = subgraph[a][b]['positions'].iterkeys().next()
-            s = min(subgraph[a][b]['positions'][p])
-            f = max(subgraph[a][b]['positions'][p])
-            for new_a, new_b in sequence_edges[1:]:
-                new_s = min(subgraph[a][b]['positions'][p])
-                new_f = max(subgraph[a][b]['positions'][p])
-                if new_s < s:
-                    s = new_s
-                    a, b = new_a, new_b
-                if new_f > f:
-                    f = new_f
-            # we have now found the source node. Use its information to build variables
-            for para in subgraph[a][b]['positions']:
-                for start in subgraph[a][b]['positions'][para]:
-                    if len(self.kmers) > 0:
-                        self.variables[(para, int(start))] = pulp.LpVariable("{}_{}".format(para, start), 
-                                       lowBound=min_ploidy, upBound=max_ploidy, cat="Integer")
-                    else:
-                        self.variables[(para, int(start))] = None
-            self.span = f - s
-
-    def __len__(self):
-        return len(self.kmers)
+        # find all sequence edges
+        sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
+        # find all valid kmers
+        self.kmers = {removeLabel(a) for a, b in sequence_edges if 'bad' not in subgraph[a][b]}
+        begin_a, begin_b = sequence_edges[0]
+        # now we want to find the first and last nodes
+        # loop over paralogs
+        for p in subgraph[begin_a][begin_b]['positions'].iterkeys():
+            # pick a random sequence edge to start at (networkx stores these unordered)
+            start_a, start_b = begin_a, begin_b
+            # loop over the instances of this paralog
+            for i in xrange(len(subgraph[start_a][start_b]['positions'][p])):
+                # find the start and stop node for each instance of this paralog
+                f = s = subgraph[start_a][start_b]['positions'][p][i]
+                # loop over all remaining sequence edges and update the start/stop as necessary
+                for new_a, new_b in sequence_edges[1:]:
+                    new_s = subgraph[new_a][new_b]['positions'][p][i]
+                    new_f = subgraph[new_a][new_b]['positions'][p][i]
+                    if new_s < s:
+                        s = new_s
+                        start_a, start_b = new_a, new_b
+                    if new_f > f:
+                        f = new_f
+                        stop_a, stop_b = new_a, new_b
+                assert f - s + 1 >= len(subgraph) / 2
+                span = f - s + 1
+                if len(self.kmers) > 0:
+                    self.variables[(para, s, span)] = pulp.LpVariable("{}_{}".format(para, s), lowBound=min_ploidy, 
+                                                                                     upBound=max_ploidy, cat="Integer")
+                else:
+                    self.variables[(para, s, span)] = None
 
     def kmerIter(self):
         """iterator over all kmers in this block"""
@@ -81,8 +62,8 @@ class Block(object):
 
     def variableIter(self):
         """iterator over variables and related values in this block"""
-        for (para, start), variable in self.variables.iteritems():
-            yield para, start, variable
+        for (para, start, span), variable in self.variables.iteritems():
+            yield para, start, span, variable
 
     def getVariables(self):
         """returns all LP variables in this block"""
@@ -92,24 +73,11 @@ class Block(object):
         """returns set of all kmers in block"""
         return self.kmers
 
-    def getCount(self):
-        """returns counts of data seen in this block"""
-        return self.count
-
-    def getSpan(self):
-        """returns the span of this block. May be not the same as the length due to flagged kmers."""
-        return self.span
-
 
 class KmerModel(SequenceGraphLpProblem):
     """
     Represents a kmer DeBruijnGraph model to infer copy number of highly
     similar paralogs using ILP.
-
-    Each weakly connected component of the graph represents one 'block'
-    which will be assigned one LP variable for each source sequence
-    within the WCC (each node all comes from the same sequence(s) by the
-    pruning method used).
 
     normalizing is the average kmer count in a region with known copy number of 2.
 
@@ -145,7 +113,7 @@ class KmerModel(SequenceGraphLpProblem):
         """
         Builds a ILP kmer model. Input:
 
-        DeBruijnGraph, which is a networkx DeBruijnGraph built over the genome region of interest.
+        deBruijnGraph, which is a networkx DeBruijnGraph built over the genome region of interest.
 
         """
         # build the blocks, don't tie them together yet
@@ -154,8 +122,8 @@ class KmerModel(SequenceGraphLpProblem):
             self.blocks.append(b)
 
         for block in self.blocks:
-            for para, start, variable in block.variableIter():
-                self.block_map[para].append([start, variable, block])
+            for para, start, span, variable in block.variableIter():
+                self.block_map[para].append([start, span, variable])
 
         #sort the block maps by start positions
         for para in self.block_map:
@@ -164,7 +132,7 @@ class KmerModel(SequenceGraphLpProblem):
         #now we tie the blocks together
         for para in self.block_map:
             #filter out all blocks without variables (no kmers)
-            variables = [v for s, v, b in self.block_map[para] if v is not None]
+            variables = [var for start, span, var in self.block_map[para] if var is not None]
             for i in xrange(1, len(variables)):
                 var_a, var_b = variables[i - 1], variables[i]
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
@@ -204,43 +172,13 @@ class KmerModel(SequenceGraphLpProblem):
 
         """
         for block in self.blocks:
-            if len(block) > 0:
+            if len(block.kmers) > 0:
                 count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
-                adjustedCount = (1.0 * count) / (len(block) * self.normalizing)
+                adjustedCount = (1.0 * count) / (len(block.kmers) * self.normalizing)
                 block.adjustedCount = adjustedCount
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)
 
     def reportCopyMap(self):
-        """
-        Reports copy number for the solved ILP problem, exploding out so there is a value
-        for every x position. Used for graphs.
-        """
-        copy_map = defaultdict(list)
-        for para in self.block_map:
-            # find the first variable for this one and extrapolate backwards
-            for i in xrange(len(self.block_map[para])):
-                start, var, block = self.block_map[para][i]
-                if var is not None:
-                    prevVal = pulp.value(var)
-                    for j in xrange(start):
-                        copy_map[para].append(prevVal)
-                    break
-            for j in xrange(i + 1, len(self.block_map[para])):
-                start, var, block = self.block_map[para][j - 1]
-                stop, next_var, next_block = self.block_map[para][j]
-                if var is None:
-                    c = prevVal
-                else:
-                    c = pulp.value(var)
-                    prevVal = c
-                for k in xrange(start, stop):
-                    copy_map[para].append(c)
-            c = pulp.value(next_var)
-            for k in xrange(stop, stop + len(next_block)):
-                copy_map[para].append(c)
-        return copy_map, self.offset_map
-
-    def reportCondensedCopyMap(self):
         """
         Reports copy number for each ILP variable, once. If a block lacks a variable, reports the previous value.
         format [position, span, value]
@@ -249,15 +187,15 @@ class KmerModel(SequenceGraphLpProblem):
         for para in self.block_map:
             prevVar = self.exp_dict[para]
             offset = self.offset_map[para]
-            for start, var, block in self.block_map[para]:
+            for start, span, var in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, block.getSpan(), pulp.value(var)])
+                    copy_map[para].append([start + offset, span, pulp.value(var)])
                     prevVar = pulp.value(var)
                 else:
-                    copy_map[para].append([start + offset, block.getSpan(), prevVar])
+                    copy_map[para].append([start + offset, span, prevVar])
         return copy_map
 
-    def reportCondensedNormalizedRawDataMap(self):
+    def reportNormalizedRawDataMap(self):
         """
         Reports the raw counts seen at each variable. This is normalized by the number of variables in the block.
         """
@@ -265,12 +203,12 @@ class KmerModel(SequenceGraphLpProblem):
         prevVar = 2
         for para in self.block_map:
             offset = self.offset_map[para]
-            for start, var, block in self.block_map[para]:
+            for start, span, var in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, block.getSpan(), block.adjustedCount / len(block.getVariables())])
+                    copy_map[para].append([start + offset, span, block.adjustedCount / len(block.getVariables())])
                     prevVar = block.adjustedCount / len(block.getVariables())
                 else:
-                    copy_map[para].append([start + offset, block.getSpan(), prevVar])
+                    copy_map[para].append([start + offset, span, prevVar])
         return copy_map
 
     def getOffsets(self):

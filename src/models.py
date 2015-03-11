@@ -317,10 +317,9 @@ def combinedPlot(ilpDict, rawCounts, offsetMap, unfilteredSunDict, uuid, outDir)
         stop = start + len(data)
         rounded_max_gap = int(math.ceil(1.0 * maxGap / 10000) * 10000)
         p.axis([start, start + rounded_max_gap, 0, 4])
-        x_ticks = range(start, start + rounded_max_gap, 20000)
-        x_ticks.append(stop)
+        x_ticks = [start] + range(start + 20000, start + rounded_max_gap, 20000) + [stop]
         p.axes.set_xticks(x_ticks)
-        p.axes.set_xticklabels(map(str, range(0, (len(x_ticks) - 1) * 20000, 20000)) + [str(stop)])
+        p.axes.set_xticklabels([str(start)] + [str(20000 * x) for x in xrange(1, len(x_ticks) - 1)] + [stop])
         p.fill_between(range(start, stop), data, color=colors[i], alpha=0.8)
         p.plot(range(start, stop, 300), windowedRawData, alpha=0.8, linewidth=1.5)
         if len(unfilteredSunDict[paraMap[para]]) > 0:

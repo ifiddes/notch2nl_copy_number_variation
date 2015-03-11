@@ -50,10 +50,10 @@ class Block(object):
                 assert f - s + 1 >= len(subgraph) / 2
                 span = f - s + 1
                 if len(self.kmers) > 0:
-                    self.variables[(para, s, span)] = pulp.LpVariable("{}_{}".format(para, s), lowBound=min_ploidy, 
-                                                                                     upBound=max_ploidy, cat="Integer")
+                    self.variables[(p, s, span)] = pulp.LpVariable("{}_{}".format(p, s), lowBound=min_ploidy, 
+                                                                   upBound=max_ploidy, cat="Integer")
                 else:
-                    self.variables[(para, s, span)] = None
+                    self.variables[(p, s, span)] = None
 
     def kmerIter(self):
         """iterator over all kmers in this block"""
@@ -148,7 +148,7 @@ class KmerModel(SequenceGraphLpProblem):
         if self.inferD is not None:
             self.exp_dict["Notch2NL-D"] = self.inferD
         for block in self.blocks:
-            expected = sum(self.exp_dict[p] for p, s, v in block.variableIter() if v is not None)
+            expected = sum(self.exp_dict[p] for p, s, sp, v in block.variableIter() if v is not None)
             self.constrain_approximately_equal(expected, sum(block.getVariables()), penalty=self.tightness)
 
         #now we force all Notch2 variables to be equal to 2

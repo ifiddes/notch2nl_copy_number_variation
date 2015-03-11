@@ -162,7 +162,7 @@ class KmerModel(SequenceGraphLpProblem):
                 self.add_constraint(var == self.inferC)
 
         if self.inferD is not None:
-            for start, span, var, blockin self.block_map["Notch2NL-D"]:
+            for start, span, var, block in self.block_map["Notch2NL-D"]:
                 self.add_constraint(var == self.inferD)
 
     def introduceData(self, kmerCounts):

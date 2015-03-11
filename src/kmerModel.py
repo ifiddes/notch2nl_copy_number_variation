@@ -153,17 +153,17 @@ class KmerModel(SequenceGraphLpProblem):
 
         #now we force all Notch2 variables to be equal to 2
         if "Notch2" in self.block_map:
-            for s, v, b in self.block_map["Notch2"]:
-                self.add_constraint(v == 2)
+            for start, span, var, block in self.block_map["Notch2"]:
+                self.add_constraint(var == 2)
 
         #if we have previously inferred C/D copy numbers, set those values
         if self.inferC is not None:
-            for s, v, b in self.block_map["Notch2NL-C"]:
-                self.add_constraint(v == self.inferC)
+            for start, span, var, block in self.block_map["Notch2NL-C"]:
+                self.add_constraint(var == self.inferC)
 
         if self.inferD is not None:
-            for s, v, b in self.block_map["Notch2NL-D"]:
-                self.add_constraint(v == self.inferD)
+            for start, span, var, blockin self.block_map["Notch2NL-D"]:
+                self.add_constraint(var == self.inferD)
 
     def introduceData(self, kmerCounts):
         """

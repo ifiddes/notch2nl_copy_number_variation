@@ -44,7 +44,7 @@ def main(args):
 
     for name, seq in fastaRead(args.normalizing):
         G.addNormalizing(name, seq)
-
+        
     if args.bad_kmers is not None:
         G.flagNodes(args.bad_kmers)
 

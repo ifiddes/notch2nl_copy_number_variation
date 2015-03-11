@@ -164,13 +164,13 @@ class KmerModel(SequenceGraphLpProblem):
         #    for para, start, variable in block.variableIter():
         #        self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
 
-        exp_dict = {x[0] : self.defaultPloidy for x in deBruijnGraph.paralogs}
+        self.exp_dict = {x[0] : self.defaultPloidy for x in deBruijnGraph.paralogs}
         if self.inferC is not None:
-            exp_dict["Notch2NL-C"] = self.inferC
+            self.exp_dict["Notch2NL-C"] = self.inferC
         if self.inferD is not None:
-            exp_dict["Notch2NL-D"] = self.inferD
+            self.exp_dict["Notch2NL-D"] = self.inferD
         for block in self.blocks:
-            expected = sum(exp_dict[p] for p, s, v in block.variableIter() if v is not None)
+            expected = sum(self.exp_dict[p] for p, s, v in block.variableIter() if v is not None)
             self.constrain_approximately_equal(expected, sum(block.getVariables()), penalty=self.tightness)
 
         #now we force all Notch2 variables to be equal to 2
@@ -236,15 +236,17 @@ class KmerModel(SequenceGraphLpProblem):
         format [position, span, value]
         """
         copy_map = defaultdict(list)
-        prevVar = self.defaultPloidy
         for para in self.block_map:
+            prevVar = self.exp_dict[para]
+            prevStart = 0
             offset = self.offset_map[para]
             for start, var, block in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, len(block), pulp.value(var)])
+                    copy_map[para].append([start + offset, start - prevStart, pulp.value(var)])
                     prevVar = pulp.value(var)
                 else:
-                    copy_map[para].append([start + offset, len(block), prevVar])
+                    copy_map[para].append([start + offset, start - prevStart, prevVar])
+                prevStart = start
         return copy_map
 
     def reportCondensedNormalizedRawDataMap(self):
@@ -257,10 +259,11 @@ class KmerModel(SequenceGraphLpProblem):
             offset = self.offset_map[para]
             for start, var, block in self.block_map[para]:
                 if var is not None:
-                    copy_map[para].append([start + offset, len(block), block.adjustedCount / len(block.getVariables())])
+                    copy_map[para].append([start + offset, start - prevStart, block.adjustedCount / len(block.getVariables())])
                     prevVar = block.adjustedCount / len(block.getVariables())
                 else:
-                    copy_map[para].append([start + offset, len(block), prevVar])
+                    copy_map[para].append([start + offset, start - prevStart, prevVar])
+                prevStart = start
         return copy_map
 
     def getOffsets(self):

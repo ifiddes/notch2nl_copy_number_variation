@@ -101,17 +101,17 @@ class Merge(Target):
             input_sequences = G.G.edge[k + "_L"][k + "_R"]['positions'].keys()
             weights[k] = 1.0 * len(self.count_files) * sum(avg_frac_dict[x] for x in input_sequences) / (added_counts[k] + 1)
 
-        with open(os.path.join(self.out_dir, "high_weight_bad_kmers.fasta"), "w") as outf:
+        with open(os.path.join(self.out_dir, "weight_bad_kmers.fasta"), "w") as outf:
             for k in filtered_kmers:
-                if weights[k] > 4.0:
+                if weights[k] > 4.0 or weights[k] < 1.0:
                     G.G.edge[k + "_L"][k + "_R"]['bad'] = True
-                    outf.write(">{0}\n{0}\n".format(k))
+                    outf.write(">{}\n{}\n".format(weights[k], k))
 
         with open(os.path.join(self.out_dir, "weights.txt"), "w") as outf:
             for k in weights:
                 outf.write("{}\t{}\n".format(k, weights[k]))
 
-        weights = {x:y for x,y in weights.iteritems() if y <= 4.0}
+        weights = {x:y for x,y in weights.iteritems() if y <= 4.0 and y >= 1.0}
         
         G.weightKmers(weights)
         

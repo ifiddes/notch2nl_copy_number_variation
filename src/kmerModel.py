@@ -173,7 +173,7 @@ class KmerModel(SequenceGraphLpProblem):
                 block.adjustedCount = adjustedCount
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)
 
-    def reportCopyMap(self):
+    def reportNormalizedRawDataMap(self):
         """
         Reports copy number for each ILP variable, once. If a block lacks a variable, reports the previous value.
         format [position, span, value]
@@ -181,46 +181,43 @@ class KmerModel(SequenceGraphLpProblem):
         copy_map = defaultdict(list)
         for para in self.block_map:
             offset = self.offset_map[para]
-            prevStart, prevVar, prevBlock = self.block_map[para][0]
-            if prevVar is None:
-                prevVar = self.exp_dict[para]
-            for i in xrange(1, len(self.block_map[para])):
+            for i in xrange(len(self.block_map[para]) - 1):
                 start, var, block = self.block_map[para][i]
-                span = start - prevStart
-                if prevVar is not None:
-                    copy_map[para].append([prevStart + offset, span, pulp.value(prevVar)])
-                    if var is not None:
-                        prevVar = pulp.value(var)
+                span = self.block_map[para][i + 1][0] - start
+                if var is not None:
+                    copy_map[para].append([start + offset, span, block.adjustedCount / len(block.getVariables())])
+                    prevVar = block.adjustedCount / len(block.getVariables())
                 else:
-                    copy_map[para].append([prevStart + offset, span, prevVar])
-                prevStart, prevBlock = start, block
-            finalSpan = self.G.sizes[para] - prevStart
-            copy_map[para].append([prevStart + offset, span, prevVar])
+                    copy_map[para].append([start + offset, span, prevVar])
+            finalStart, finalVar, finalBlock = self.block_map[para][-1]
+            finalSpan = self.G.sizes[para] - finalStart
+            if finalVar is not None:
+                copy_map[para].append([finalStart + offset, finalSpan, block.adjustedCount / len(block.getVariables())])
+            else:
+                copy_map[para].append([finalStart + offset, finalSpan, prevVar])
         return copy_map
 
-    def reportNormalizedRawDataMap(self):
+    def reportCopyMap(self):
         """
         Reports the raw counts seen at each variable. This is normalized by the number of variables in the block.
         """
         copy_map = defaultdict(list)
-        prevVar = 2
         for para in self.block_map:
             offset = self.offset_map[para]
-            prevStart, prevVar, prevBlock = self.block_map[para][0]
-            if prevVar is None:
-                prevVar = self.exp_dict[para]
-            for i in xrange(1, len(self.block_map[para])):
+            for i in xrange(len(self.block_map[para]) - 1):
                 start, var, block = self.block_map[para][i]
-                span = start - prevStart
-                if prevVar is not None:
-                    copy_map[para].append([prevStart + offset, span, prevBlock.adjustedCount / len(prevBlock.getVariables())])
-                    if var is not None:
-                        prevVar = block.adjustedCount / len(block.getVariables())
+                span = self.block_map[para][i + 1][0] - start
+                if var is not None:
+                    copy_map[para].append([start + offset, span, pulp.value(var)])
+                    prevVar = pulp.value(var)
                 else:
-                    copy_map[para].append([prevStart + offset, span, prevVar])
-                prevStart, prevBlock = start, block
-            finalSpan = self.G.sizes[para] - prevStart
-            copy_map[para].append([prevStart + offset, span, prevVar])
+                    copy_map[para].append([start + offset, span, prevVar])
+            finalStart, finalVar, finalBlock = self.block_map[para][-1]
+            finalSpan = self.G.sizes[para] - finalStart
+            if finalVar is not None:
+                copy_map[para].append([finalStart + offset, finalSpan, pulp.value(var)])
+            else:
+                copy_map[para].append([finalStart + offset, finalSpan, prevVar])
         return copy_map
 
     def getOffsets(self):

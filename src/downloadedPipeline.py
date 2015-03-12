@@ -54,7 +54,7 @@ class ModelWrapperDownloadedFiles(Target):
     def run(self):
         fastqPath = os.path.join(self.outDir, self.uuid + ".fastq")
         if not os.path.exists(fastqPath):
-            raise RuntimeError("fastq not in fastqPath. Schema is <uuid>.fastq")
+            raise RuntimeError("fastq not in fastqPath. Schema is <uuid>.fastq. uuid: {}".format(self.uuid))
         if self.saveInter is not True:
             bamPath = os.path.join(self.getLocalTempDir(), self.uuid + ".bam")
         else:

@@ -1,5 +1,5 @@
 #!/bin/bash
-batchSystem="gridEngine"
+batchSystem="singleMachine"
 maxThreads="20"
 defaultMemory="8589934592"
 jobTree=".downloadedJobTree/"

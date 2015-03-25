@@ -12,10 +12,10 @@ import src.models as models
 
 def buildParser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", "-o", type=DirType, default="./output_weighted/",
+    parser.add_argument("--output", "-o", type=DirType, default="./tmp_output/",
                         help=("base output directory that results will be written to. Default is ./output/"
                               "This where files will be hunted for."))
-    parser.add_argument("--breakpoint_penalty", type=float, default=75.0,
+    parser.add_argument("--breakpoint_penalty", type=float, default=80.0,
                         help="breakpoint penalty used for ILP model.")
     parser.add_argument("--data_penalty", type=float, default=1.1,
                         help="data penalty used for ILP model.")

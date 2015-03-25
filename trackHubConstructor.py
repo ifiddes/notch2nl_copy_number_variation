@@ -27,7 +27,7 @@ def startHub(d, name):
     with open(os.path.join(d, "hub.txt"), "w") as outf:
         outf.write("hub {}\nshortLabel {}\nlongLabel {}\ngenomesFile genomes.txt\nemail ian.t.fiddes@gmail.com\n".format(name, name + " Notch2NL", name + " Notch2NL"))
     with open(os.path.join(d, "genomes.txt"), "w") as outf:
-        outf.write("genome hg38\ntrackDb hg38/trackDb.txt\ndefaultPos chr1:145987622-149723055\n")
+        outf.write("genome hg38\ntrackDb hg38/trackDb.txt\ndefaultPos chr1:145987622-149723055\n\n")
         outf.write("genome hg19\ntrackDb hg19/trackDb.txt\ndefaultPos chr1:120414641-120651853\n")
     if not os.path.exists(os.path.join(d, "hg38")):
         os.mkdir(os.path.join(d, "hg38"))

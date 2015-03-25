@@ -167,7 +167,7 @@ class KmerModel(SequenceGraphLpProblem):
 
         #finally, constrain all trash bins to be as close to zero as possible
         for b in self.blocks:
-            self.constrain_approximately_equal(b.getTrash(), 0, penalty=1.0)
+            self.constrain_approximately_equal(b.getTrash(), 0, penalty=0.25)
 
     def introduceData(self, kmerCounts):
         """
@@ -176,8 +176,8 @@ class KmerModel(SequenceGraphLpProblem):
         """
         for block in self.blocks:
             if len(block.kmers) > 0:
-                #count = sum(kmerCounts[k] * 2.0 for k in block.getKmers())
-                count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
+                count = sum(kmerCounts[k] * 2.0 for k in block.getKmers())
+                #count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
                 adjustedCount = (1.0 * count) / (len(block.kmers) * self.normalizing)
                 block.adjustedCount = adjustedCount
                 self.constrain_approximately_equal(adjustedCount, sum(block.getVariables() + [block.getTrash()]), 

@@ -91,7 +91,7 @@ class KmerModel(SequenceGraphLpProblem):
     
     """
     def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, tightness=1, inferC=None, 
-                 inferD=None, defaultPloidy=2):
+                 inferD=None, defaultPloidy=2.0):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = {x[0]: [] for x in deBruijnGraph.paralogs}
@@ -138,9 +138,9 @@ class KmerModel(SequenceGraphLpProblem):
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
         #tie each variable to be approximately equal to copy number 2 subject to the tightness constraint
-        #for block in self.blocks:
-        #    for para, start, variable in block.variableIter():
-        #        self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
+        for block in self.blocks:
+            for para, start, variable in block.variableIter():
+                self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness / 1.5)
 
         self.exp_dict = {x[0] : self.defaultPloidy for x in deBruijnGraph.paralogs}
         if self.inferC is not None:
@@ -167,7 +167,7 @@ class KmerModel(SequenceGraphLpProblem):
 
         #finally, constrain all trash bins to be as close to zero as possible
         for b in self.blocks:
-            self.constrain_approximately_equal(b.getTrash(), 0, penalty=0.25)
+            self.constrain_approximately_equal(b.getTrash(), 0, penalty=1.0)
 
     def introduceData(self, kmerCounts):
         """

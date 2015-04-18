@@ -13,7 +13,7 @@ from jobTree.src.bioio import logger, setLoggingFromOptions, system
 from itertools import izip
 import numpy as np
 
-#hard coded allele fractions seen in 201 TCGA individuals
+#hard coded allele fractions seen in 200 TCGA individuals
 avg_frac_dict = {"Notch2NL-A":2.0, "Notch2NL-B":2.0, "Notch2NL-C":1.843, "Notch2NL-D":0.980, "Notch2":2.0}
 
 def build_parser():
@@ -30,8 +30,8 @@ def build_parser():
 class buildDict(Target):
     def __init__(self, uuid, path, out_dir, graph):
         Target.__init__(self)
-        self.counts = Counter()
-        self.normalizing = 0
+        self.counts = defaultdict(float)
+        self.normalizing = 0.0
         self.uuid = uuid
         self.path = path
         self.out_dir = out_dir

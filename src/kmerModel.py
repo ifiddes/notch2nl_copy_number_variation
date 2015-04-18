@@ -1,9 +1,7 @@
 import pulp
 from collections import Counter, defaultdict
 import networkx as nx
-from itertools import izip, groupby
-from operator import itemgetter
-from math import log, exp
+from itertools import izip
 
 from src.abstractIlpSolving import SequenceGraphLpProblem
 from jobTree.src.bioio import reverseComplement
@@ -24,6 +22,8 @@ class Block(object):
         self.variables = {}
         self.subgraph = subgraph
         self.adjustedCount = None
+        # each block gets its own trash bin - a place for extra kmer counts to go
+        self.trash = pulp.LpVariable(str(id(self)), lowBound=0)
         # find all sequence edges
         sequence_edges = [x for x in subgraph.edges() if removeLabel(x[0]) == removeLabel(x[1])]
         # find all valid kmers
@@ -38,7 +38,7 @@ class Block(object):
             for i in xrange(len(subgraph[start_a][start_b]['positions'][p])):
                 # find the start and stop node for each instance of this paralog
                 f = s = subgraph[start_a][start_b]['positions'][p][i]
-                # loop over all remaining sequence edges and update the start necessary
+                # loop over all remaining sequence edges and update the start as necessary
                 for new_a, new_b in sequence_edges[1:]:
                     new_s = subgraph[new_a][new_b]['positions'][p][i]
                     if new_s < s:
@@ -46,7 +46,7 @@ class Block(object):
                         start_a, start_b = new_a, new_b
                 if len(self.kmers) > 0:
                     self.variables[(p, s)] = pulp.LpVariable("{}_{}".format(p, s), lowBound=min_ploidy, 
-                                                                   upBound=max_ploidy, cat="Integer")
+                                                             upBound=max_ploidy, cat="Integer")
                 else:
                     self.variables[(p, s)] = None
 
@@ -68,6 +68,10 @@ class Block(object):
         """returns set of all kmers in block"""
         return self.kmers
 
+    def getTrash(self):
+        """returns the trash variable for this block"""
+        return self.trash
+
 
 class KmerModel(SequenceGraphLpProblem):
     """
@@ -87,7 +91,7 @@ class KmerModel(SequenceGraphLpProblem):
     
     """
     def __init__(self, deBruijnGraph, normalizing, breakpointPenalty=15, dataPenalty=1, tightness=1, inferC=None, 
-                 inferD=None, defaultPloidy=2):
+                 inferD=None, defaultPloidy=2.0):
         SequenceGraphLpProblem.__init__(self)
         self.blocks = []
         self.block_map = {x[0]: [] for x in deBruijnGraph.paralogs}
@@ -116,6 +120,7 @@ class KmerModel(SequenceGraphLpProblem):
             b = Block(subgraph)
             self.blocks.append(b)
 
+        # build the block map, which relates a block to its position
         for block in self.blocks:
             for para, start, variable in block.variableIter():
                 self.block_map[para].append([start, variable, block])
@@ -133,9 +138,9 @@ class KmerModel(SequenceGraphLpProblem):
                 self.constrain_approximately_equal(var_a, var_b, penalty=self.breakpointPenalty)
 
         #tie each variable to be approximately equal to copy number 2 subject to the tightness constraint
-        #for block in self.blocks:
-        #    for para, start, variable in block.variableIter():
-        #        self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness)
+        for block in self.blocks:
+            for para, start, variable in block.variableIter():
+                self.constrain_approximately_equal(self.defaultPloidy, variable, penalty=self.tightness / 1.5)
 
         self.exp_dict = {x[0] : self.defaultPloidy for x in deBruijnGraph.paralogs}
         if self.inferC is not None:
@@ -160,18 +165,23 @@ class KmerModel(SequenceGraphLpProblem):
             for start, var, block in self.block_map["Notch2NL-D"]:
                 self.add_constraint(var == self.inferD)
 
+        #finally, constrain all trash bins to be as close to zero as possible
+        for b in self.blocks:
+            self.constrain_approximately_equal(b.getTrash(), 0, penalty=1.0)
+
     def introduceData(self, kmerCounts):
         """
         Introduces data to this ILP kmer model. For this, the input is assumed to be a dict 
         representing the results of kmer counting a WGS dataset (format seq:count)
-
         """
         for block in self.blocks:
             if len(block.kmers) > 0:
-                count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
+                count = sum(kmerCounts[k] * 2.0 for k in block.getKmers())
+                #count = sum(kmerCounts[k] * self.G.weights[k] for k in block.getKmers())
                 adjustedCount = (1.0 * count) / (len(block.kmers) * self.normalizing)
                 block.adjustedCount = adjustedCount
-                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables()), penalty=self.dataPenalty)
+                self.constrain_approximately_equal(adjustedCount, sum(block.getVariables() + [block.getTrash()]), 
+                                                   penalty=self.dataPenalty)
 
     def reportNormalizedRawDataMap(self):
         """
